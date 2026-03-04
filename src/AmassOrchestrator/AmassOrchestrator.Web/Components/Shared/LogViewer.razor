@@ -1,0 +1,59 @@
+@implements IDisposable
+
+<RadzenCard>
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-mb-2">
+        <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">Logs</RadzenText>
+        @if (!_connected)
+        {
+            <RadzenButton Text="Reconnect" Icon="refresh" Size="ButtonSize.Small" Click="@StartStreaming" />
+        }
+    </RadzenStack>
+    <pre style="max-height: 400px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem;">@string.Join("\n", _lines)</pre>
+</RadzenCard>
+
+@code {
+    [Parameter, EditorRequired] public string PodIp { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public int Port { get; set; }
+    [Parameter, EditorRequired] public string SessionToken { get; set; } = string.Empty;
+    [Inject] private IAmassEngineClient EngineClient { get; set; } = default!;
+
+    private const int MaxLines = 500;
+    private readonly LinkedList<string> _lines = new();
+    private CancellationTokenSource? _cts;
+    private bool _connected;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender) _ = StartStreaming();
+    }
+
+    private async Task StartStreaming()
+    {
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        _connected = true;
+        StateHasChanged();
+
+        try
+        {
+            await foreach (var line in EngineClient.StreamLogsAsync(PodIp, Port, SessionToken, _cts.Token))
+            {
+                _lines.AddLast(line);
+                while (_lines.Count > MaxLines) _lines.RemoveFirst();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            _connected = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+}

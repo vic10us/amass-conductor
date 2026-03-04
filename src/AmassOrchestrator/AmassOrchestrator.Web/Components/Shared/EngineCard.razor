@@ -1,0 +1,29 @@
+@inject NavigationManager Navigation
+
+<RadzenCard Style="cursor: pointer;" @onclick="NavigateToDetail">
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+        <RadzenStack Gap="0.25rem">
+            <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">@State.Pod.PodName</RadzenText>
+            <RadzenText TextStyle="TextStyle.Caption">@State.Pod.PodIP - @State.Pod.Phase</RadzenText>
+        </RadzenStack>
+        <HealthBadge IsHealthy="@State.IsHealthy" IsReady="@State.Pod.IsReady" />
+    </RadzenStack>
+    <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2">
+        @State.Sessions.Count session(s) active
+    </RadzenText>
+    @if (State.Sessions.Count > 0)
+    {
+        var totalCompleted = State.Sessions.Sum(s => s.WorkItemsCompleted);
+        var totalItems = State.Sessions.Sum(s => s.WorkItemsTotal);
+        <ProgressBar Completed="@totalCompleted" Total="@totalItems" />
+    }
+</RadzenCard>
+
+@code {
+    [Parameter, EditorRequired] public EngineInstanceState State { get; set; } = default!;
+
+    private void NavigateToDetail()
+    {
+        Navigation.NavigateTo($"engine/{Uri.EscapeDataString(State.Pod.PodName)}");
+    }
+}

@@ -1,0 +1,17 @@
+@if (IsHealthy)
+{
+    <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Healthy" />
+}
+else if (IsReady)
+{
+    <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Unhealthy" />
+}
+else
+{
+    <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="Not Ready" />
+}
+
+@code {
+    [Parameter] public bool IsHealthy { get; set; }
+    [Parameter] public bool IsReady { get; set; }
+}

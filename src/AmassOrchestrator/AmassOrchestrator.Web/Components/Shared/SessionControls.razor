@@ -1,0 +1,36 @@
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+
+<RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+    <RadzenButton Text="Stop Session" Icon="stop" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@ConfirmStop" />
+</RadzenStack>
+
+@code {
+    [Parameter, EditorRequired] public string PodIp { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public int Port { get; set; }
+    [Parameter, EditorRequired] public string SessionToken { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnSessionStopped { get; set; }
+    [Inject] private IAmassEngineClient EngineClient { get; set; } = default!;
+
+    private async Task ConfirmStop()
+    {
+        var confirmed = await DialogService.Confirm(
+            $"Stop session {SessionToken[..8]}...?",
+            "Confirm Stop",
+            new ConfirmOptions { OkButtonText = "Stop", CancelButtonText = "Cancel" });
+
+        if (confirmed == true)
+        {
+            var success = await EngineClient.DeleteSessionAsync(PodIp, Port, SessionToken);
+            if (success)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, "Session stopped");
+                await OnSessionStopped.InvokeAsync();
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Failed to stop session");
+            }
+        }
+    }
+}

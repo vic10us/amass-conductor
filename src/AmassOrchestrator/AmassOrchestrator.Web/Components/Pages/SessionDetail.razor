@@ -1,0 +1,98 @@
+@page "/engine/{PodName}/session/{SessionToken}"
+@implements IDisposable
+@inject EngineStateStore StateStore
+@inject IOptions<AmassOrchestrator.Web.Configuration.OrchestratorOptions> Options
+@inject NavigationManager Navigation
+@using Microsoft.Extensions.Options
+@rendermode InteractiveServer
+
+<PageTitle>Session @ShortToken - Amass Orchestrator</PageTitle>
+
+<RadzenBreadCrumb>
+    <RadzenBreadCrumbItem Text="Dashboard" Path="" />
+    <RadzenBreadCrumbItem Text="@PodName" Path="@($"engine/{Uri.EscapeDataString(PodName)}")" />
+    <RadzenBreadCrumbItem Text="@ShortToken" />
+</RadzenBreadCrumb>
+
+@if (_state == null || _session == null)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" class="rz-mt-4">
+        Session not found. It may have been terminated.
+    </RadzenAlert>
+}
+else
+{
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" class="rz-mt-4 rz-mb-4">
+        <RadzenText TextStyle="TextStyle.H4" class="rz-m-0">Session @ShortToken</RadzenText>
+        <SessionControls PodIp="@_state.Pod.PodIP" Port="@Options.Value.EnginePort" SessionToken="@SessionToken"
+                         OnSessionStopped="@(() => Navigation.NavigateTo($"engine/{Uri.EscapeDataString(PodName)}"))" />
+    </RadzenStack>
+
+    <RadzenText TextStyle="TextStyle.Body1" class="rz-mb-4">
+        Full token: @SessionToken
+    </RadzenText>
+
+    <RadzenTabs>
+        <Tabs>
+            <RadzenTabsItem Text="Stats">
+                <div class="rz-p-4">
+                    <ProgressBar Completed="@_session.WorkItemsCompleted" Total="@_session.WorkItemsTotal" />
+                    <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2">
+                        Progress: @_session.ProgressPercent%
+                    </RadzenText>
+                </div>
+            </RadzenTabsItem>
+            <RadzenTabsItem Text="Logs">
+                <div class="rz-p-4">
+                    <LogViewer PodIp="@_state.Pod.PodIP" Port="@Options.Value.EnginePort" SessionToken="@SessionToken" />
+                </div>
+            </RadzenTabsItem>
+            <RadzenTabsItem Text="Scope">
+                <div class="rz-p-4">
+                    <RadzenStack Gap="1rem">
+                        @foreach (var assetType in _assetTypes)
+                        {
+                            <ScopeTable PodIp="@_state.Pod.PodIP" Port="@Options.Value.EnginePort"
+                                        SessionToken="@SessionToken" AssetType="@assetType" />
+                        }
+                    </RadzenStack>
+                </div>
+            </RadzenTabsItem>
+        </Tabs>
+    </RadzenTabs>
+}
+
+@code {
+    [Parameter] public string PodName { get; set; } = string.Empty;
+    [Parameter] public string SessionToken { get; set; } = string.Empty;
+
+    private string ShortToken => SessionToken.Length > 8 ? SessionToken[..8] + "..." : SessionToken;
+
+    private EngineInstanceState? _state;
+    private SessionInfo? _session;
+
+    private static readonly string[] _assetTypes = ["fqdn", "ipaddress", "autonomous_system", "netblock", "location", "organization"];
+
+    protected override void OnInitialized()
+    {
+        RefreshState();
+        StateStore.OnStateChanged += HandleStateChanged;
+    }
+
+    private void RefreshState()
+    {
+        _state = StateStore.GetState(Uri.UnescapeDataString(PodName));
+        _session = _state?.Sessions.FirstOrDefault(s => s.Token == SessionToken);
+    }
+
+    private async void HandleStateChanged()
+    {
+        RefreshState();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        StateStore.OnStateChanged -= HandleStateChanged;
+    }
+}

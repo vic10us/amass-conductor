@@ -1,0 +1,47 @@
+@page "/"
+@implements IDisposable
+@inject EngineStateStore StateStore
+@rendermode InteractiveServer
+
+<PageTitle>Dashboard - Amass Orchestrator</PageTitle>
+
+<RadzenText TextStyle="TextStyle.H4" class="rz-mb-4">Engine Dashboard</RadzenText>
+
+@if (!_states.Any())
+{
+    <RadzenAlert AlertStyle="AlertStyle.Info" Shade="Shade.Lighter">
+        No engine pods discovered. Check that the StatefulSet is running and the orchestrator configuration is correct.
+    </RadzenAlert>
+}
+else
+{
+    <RadzenRow Gap="1rem">
+        @foreach (var state in _states.OrderBy(s => s.Pod.Ordinal))
+        {
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="4">
+                <EngineCard State="@state" />
+            </RadzenColumn>
+        }
+    </RadzenRow>
+}
+
+@code {
+    private IReadOnlyList<EngineInstanceState> _states = [];
+
+    protected override void OnInitialized()
+    {
+        _states = StateStore.States.Values.ToList();
+        StateStore.OnStateChanged += HandleStateChanged;
+    }
+
+    private async void HandleStateChanged()
+    {
+        _states = StateStore.States.Values.ToList();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        StateStore.OnStateChanged -= HandleStateChanged;
+    }
+}
