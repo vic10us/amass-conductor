@@ -1,0 +1,15 @@
+@inject DialogService DialogService
+
+<RadzenStack Gap="1rem">
+    <RadzenFormField Text="Domains (comma-separated)">
+        <RadzenTextArea @bind-Value="@Domains" Rows="3" Style="width: 100%;" />
+    </RadzenFormField>
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+        <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(null))" />
+        <RadzenButton Text="Create" ButtonStyle="ButtonStyle.Primary" Click="@(() => DialogService.Close(Domains))" />
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    [Parameter] public string Domains { get; set; } = string.Empty;
+}

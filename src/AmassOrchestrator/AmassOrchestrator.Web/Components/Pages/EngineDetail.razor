@@ -1,0 +1,122 @@
+@page "/engine/{PodName}"
+@implements IDisposable
+@inject EngineStateStore StateStore
+@inject IAmassEngineClient EngineClient
+@inject NavigationManager Navigation
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+@inject IOptions<AmassOrchestrator.Web.Configuration.OrchestratorOptions> Options
+@using Microsoft.Extensions.Options
+@rendermode InteractiveServer
+
+<PageTitle>@PodName - Amass Orchestrator</PageTitle>
+
+<RadzenBreadCrumb>
+    <RadzenBreadCrumbItem Text="Dashboard" Path="" />
+    <RadzenBreadCrumbItem Text="@PodName" />
+</RadzenBreadCrumb>
+
+@if (_state == null)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" class="rz-mt-4">
+        Engine pod "@PodName" not found. It may have been removed.
+    </RadzenAlert>
+}
+else
+{
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" class="rz-mt-4 rz-mb-4">
+        <RadzenText TextStyle="TextStyle.H4" class="rz-m-0">@_state.Pod.PodName</RadzenText>
+        <HealthBadge IsHealthy="@_state.IsHealthy" IsReady="@_state.Pod.IsReady" />
+    </RadzenStack>
+
+    <RadzenText TextStyle="TextStyle.Body1" class="rz-mb-4">
+        IP: @_state.Pod.PodIP | Phase: @_state.Pod.Phase | Ordinal: @_state.Pod.Ordinal
+    </RadzenText>
+
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" class="rz-mb-4">
+        <RadzenButton Text="Create Session" Icon="add" ButtonStyle="ButtonStyle.Primary" Click="@ShowCreateDialog" />
+    </RadzenStack>
+
+    <RadzenText TextStyle="TextStyle.H5" class="rz-mb-2">Sessions (@_state.Sessions.Count)</RadzenText>
+
+    @if (_state.Sessions.Count == 0)
+    {
+        <RadzenText>No active sessions.</RadzenText>
+    }
+    else
+    {
+        <RadzenDataGrid TItem="SessionInfo" Data="@_state.Sessions" AllowPaging="true" PageSize="10">
+            <Columns>
+                <RadzenDataGridColumn TItem="SessionInfo" Title="Token" Width="320px">
+                    <Template Context="session">
+                        <RadzenLink Path="@($"engine/{Uri.EscapeDataString(PodName)}/session/{session.Token}")" Text="@session.Token" />
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="SessionInfo" Title="Progress">
+                    <Template Context="session">
+                        <ProgressBar Completed="@session.WorkItemsCompleted" Total="@session.WorkItemsTotal" />
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="SessionInfo" Title="Actions" Width="120px">
+                    <Template Context="session">
+                        <SessionControls PodIp="@_state.Pod.PodIP" Port="@Options.Value.EnginePort" SessionToken="@session.Token" />
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    }
+}
+
+@code {
+    [Parameter] public string PodName { get; set; } = string.Empty;
+
+    private EngineInstanceState? _state;
+
+    protected override void OnInitialized()
+    {
+        _state = StateStore.GetState(Uri.UnescapeDataString(PodName));
+        StateStore.OnStateChanged += HandleStateChanged;
+    }
+
+    private async void HandleStateChanged()
+    {
+        _state = StateStore.GetState(Uri.UnescapeDataString(PodName));
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ShowCreateDialog()
+    {
+        if (_state == null) return;
+
+        var domains = "";
+        var result = await DialogService.OpenAsync<CreateSessionDialog>("Create Session",
+            new Dictionary<string, object?> { { "Domains", domains } },
+            new DialogOptions { Width = "500px" });
+
+        if (result is string domainsInput && !string.IsNullOrWhiteSpace(domainsInput))
+        {
+            var config = new AmassConfig
+            {
+                Scope = new AmassScope
+                {
+                    Domains = domainsInput.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList()
+                }
+            };
+
+            var response = await EngineClient.CreateSessionAsync(_state.Pod.PodIP, Options.Value.EnginePort, config);
+            if (response != null)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, "Session created", response.SessionToken);
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Failed to create session");
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        StateStore.OnStateChanged -= HandleStateChanged;
+    }
+}

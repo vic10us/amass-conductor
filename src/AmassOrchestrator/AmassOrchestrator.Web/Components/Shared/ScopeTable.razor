@@ -1,0 +1,55 @@
+@using System.Text
+
+<RadzenCard>
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-mb-2">
+        <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">Scope - @AssetType</RadzenText>
+        <RadzenButton Text="Refresh" Icon="refresh" Size="ButtonSize.ExtraSmall" Click="@LoadScope" />
+    </RadzenStack>
+
+    @if (_loading)
+    {
+        <RadzenProgressBarCircular ShowValue="false" />
+    }
+    else if (_items.Count == 0)
+    {
+        <RadzenText>No scoped assets found for this type.</RadzenText>
+    }
+    else
+    {
+        <RadzenDataGrid TItem="string" Data="@_items" AllowPaging="true" PageSize="20">
+            <Columns>
+                <RadzenDataGridColumn TItem="string" Title="Asset Data" Property="@nameof(String.Length)">
+                    <Template Context="item">@item</Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    }
+</RadzenCard>
+
+@code {
+    [Parameter, EditorRequired] public string PodIp { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public int Port { get; set; }
+    [Parameter, EditorRequired] public string SessionToken { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string AssetType { get; set; } = string.Empty;
+    [Inject] private IAmassEngineClient EngineClient { get; set; } = default!;
+
+    private List<string> _items = [];
+    private bool _loading;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadScope();
+    }
+
+    private async Task LoadScope()
+    {
+        _loading = true;
+        StateHasChanged();
+
+        var response = await EngineClient.GetScopeAsync(PodIp, Port, SessionToken, AssetType);
+        _items = response?.Data?.Select(d => Encoding.UTF8.GetString(d)).ToList() ?? [];
+
+        _loading = false;
+        StateHasChanged();
+    }
+}
