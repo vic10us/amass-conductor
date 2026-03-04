@@ -3,8 +3,17 @@ using AmassOrchestrator.Web.Configuration;
 using AmassOrchestrator.Web.Services;
 using k8s;
 using Radzen;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, configuration) => configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .Enrich.FromLogContext()
+    .WriteTo.Console(new Serilog.Formatting.Json.JsonFormatter())
+    .WriteTo.File("logs/orchestrator-.log",
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 31));
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -48,6 +57,8 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
 }
+
+app.UseSerilogRequestLogging();
 
 app.UseAntiforgery();
 

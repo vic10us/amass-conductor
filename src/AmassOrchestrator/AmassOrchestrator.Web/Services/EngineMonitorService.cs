@@ -65,7 +65,7 @@ public class EngineMonitorService : BackgroundService
         await Parallel.ForEachAsync(pods, ct, async (pod, token) =>
         {
             var health = await _engineClient.HealthCheckAsync(pod.PodIP, port, token);
-            var isHealthy = health?.Result == "ok";
+            var isHealthy = health?.Result == "Amass Engine OK";
 
             var sessions = new List<SessionInfo>();
             var listResponse = await _engineClient.ListSessionsAsync(pod.PodIP, port, token);
