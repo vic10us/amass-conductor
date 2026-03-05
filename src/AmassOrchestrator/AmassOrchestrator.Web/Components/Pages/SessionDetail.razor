@@ -35,7 +35,13 @@ else
         <Tabs>
             <RadzenTabsItem Text="Stats">
                 <div class="rz-p-4">
-                    <ProgressBar Completed="@_session.WorkItemsCompleted" Total="@_session.WorkItemsTotal" />
+                    @if (_session.IsCompleted)
+                    {
+                        <RadzenAlert AlertStyle="AlertStyle.Success" ShowIcon="true" class="rz-mb-4">
+                            Enumeration completed.
+                        </RadzenAlert>
+                    }
+                    <ProgressBar Completed="@_session.WorkItemsCompleted" Total="@_session.WorkItemsTotal" IsCompleted="@_session.IsCompleted" />
                     <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2">
                         Progress: @_session.ProgressPercent%
                     </RadzenText>
@@ -70,7 +76,7 @@ else
     private EngineInstanceState? _state;
     private SessionInfo? _session;
 
-    private static readonly string[] _assetTypes = ["fqdn", "ipaddress", "autonomous_system", "netblock", "location", "organization"];
+    private static readonly string[] _assetTypes = ["fqdn", "ipaddress", "autonomoussystem", "netblock", "location", "organization"];
 
     protected override void OnInitialized()
     {

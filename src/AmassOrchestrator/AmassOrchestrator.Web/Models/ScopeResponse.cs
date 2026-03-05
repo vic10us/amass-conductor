@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace AmassOrchestrator.Web.Models;
@@ -5,5 +6,5 @@ namespace AmassOrchestrator.Web.Models;
 public class ScopeResponse
 {
     [JsonPropertyName("data")]
-    public List<byte[]> Data { get; set; } = [];
+    public List<JsonElement> Data { get; set; } = [];
 }

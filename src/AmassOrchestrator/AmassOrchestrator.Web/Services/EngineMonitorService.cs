@@ -72,13 +72,41 @@ public class EngineMonitorService : BackgroundService
 
             if (listResponse?.SessionTokens != null)
             {
+                var previousState = _stateStore.GetState(pod.PodName);
+
                 foreach (var sessionToken in listResponse.SessionTokens)
                 {
                     var stats = await _engineClient.GetSessionStatsAsync(pod.PodIP, port, sessionToken, token);
+                    var completed = stats?.WorkItemsCompleted ?? 0;
+                    var total = stats?.WorkItemsTotal ?? 0;
+
+                    var previous = previousState?.Sessions.FirstOrDefault(s => s.Token == sessionToken);
+                    var consecutivePolls = previous?.ConsecutiveCompletionPolls ?? 0;
+                    var isCompleted = previous?.IsCompleted ?? false;
+
+                    if (!isCompleted)
+                    {
+                        if (total > 0 && completed == total)
+                        {
+                            consecutivePolls++;
+                        }
+                        else
+                        {
+                            consecutivePolls = 0;
+                        }
+
+                        if (consecutivePolls >= 5)
+                        {
+                            isCompleted = true;
+                        }
+                    }
+
                     sessions.Add(new SessionInfo(
                         sessionToken,
-                        stats?.WorkItemsCompleted ?? 0,
-                        stats?.WorkItemsTotal ?? 0));
+                        completed,
+                        total,
+                        isCompleted,
+                        consecutivePolls));
                 }
             }
 

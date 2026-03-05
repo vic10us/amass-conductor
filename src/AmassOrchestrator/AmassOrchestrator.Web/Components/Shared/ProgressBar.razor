@@ -1,13 +1,24 @@
 <div>
-    <RadzenProgressBar Value="@Percent" ShowValue="true" Style="height: 20px;" />
-    <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-1">
-        @Completed / @Total work items
-    </RadzenText>
+    <RadzenProgressBar Value="@Percent" ShowValue="true" Style="@BarStyle" />
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem" class="rz-mt-1">
+        <RadzenText TextStyle="TextStyle.Caption">
+            @Completed / @Total work items
+        </RadzenText>
+        @if (IsCompleted)
+        {
+            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Completed" />
+        }
+    </RadzenStack>
 </div>
 
 @code {
     [Parameter] public int Completed { get; set; }
     [Parameter] public int Total { get; set; }
+    [Parameter] public bool IsCompleted { get; set; }
 
     private double Percent => Total > 0 ? Math.Round(100.0 * Completed / Total, 1) : 0;
+
+    private string BarStyle => IsCompleted
+        ? "height: 20px; --rz-progressbar-fill-background: var(--rz-success);"
+        : "height: 20px;";
 }
