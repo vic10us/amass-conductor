@@ -7,12 +7,6 @@ public class AmassConfig
     [JsonPropertyName("active")]
     public bool? Active { get; set; }
 
-    [JsonPropertyName("alterations")]
-    public bool? Alterations { get; set; }
-
-    [JsonPropertyName("brute_force")]
-    public bool? BruteForce { get; set; }
-
     [JsonPropertyName("rigid_boundaries")]
     public bool? RigidBoundaries { get; set; }
 
@@ -28,20 +22,50 @@ public class AmassConfig
     [JsonPropertyName("trusted_resolvers")]
     public List<string>? TrustedResolvers { get; set; }
 
-    [JsonPropertyName("wordlist")]
-    public List<string>? Wordlist { get; set; }
-
-    [JsonPropertyName("alt_worldlist")]
-    public List<string>? AltWordlist { get; set; }
-
-    [JsonPropertyName("database")]
-    public List<AmassDatabase>? Database { get; set; }
-
-    [JsonPropertyName("datasource_config")]
-    public DataSourceConfig? DatasourceConfig { get; set; }
+    [JsonPropertyName("options")]
+    public AmassOptions? Options { get; set; }
 
     [JsonPropertyName("transformations")]
     public Dictionary<string, AmassTransformation>? Transformations { get; set; }
+}
+
+public class AmassOptions
+{
+    [JsonPropertyName("brute_force")]
+    public BruteForceOptions? BruteForce { get; set; }
+
+    [JsonPropertyName("alterations")]
+    public AlterationsOptions? Alterations { get; set; }
+
+    [JsonPropertyName("default_transform_values")]
+    public AmassTransformation? DefaultTransformValues { get; set; }
+
+    [JsonPropertyName("active")]
+    public bool? Active { get; set; }
+
+    [JsonPropertyName("database")]
+    public string? Database { get; set; }
+
+    [JsonPropertyName("datasources")]
+    public DataSourceConfig? Datasources { get; set; }
+}
+
+public class BruteForceOptions
+{
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
+    [JsonPropertyName("wordlists")]
+    public List<string>? Wordlists { get; set; }
+}
+
+public class AlterationsOptions
+{
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
+    [JsonPropertyName("wordlists")]
+    public List<string>? Wordlists { get; set; }
 }
 
 public class AmassScope

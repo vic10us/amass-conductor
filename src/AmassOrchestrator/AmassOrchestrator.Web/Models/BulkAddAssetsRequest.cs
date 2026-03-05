@@ -5,5 +5,5 @@ namespace AmassOrchestrator.Web.Models;
 public class BulkAddAssetsRequest
 {
     [JsonPropertyName("items")]
-    public List<byte[]> Items { get; set; } = [];
+    public List<object> Items { get; set; } = [];
 }

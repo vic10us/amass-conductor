@@ -1,5 +1,3 @@
-using System.Text;
-using System.Text.Json;
 using AmassOrchestrator.Web.Configuration;
 using AmassOrchestrator.Web.Models;
 using AmassOrchestrator.Web.Models.Kubernetes;
@@ -61,7 +59,7 @@ public class EnumerationService(
         try
         {
             var items = domains
-                .Select(d => Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { name = d })))
+                .Select(d => (object)new { name = d })
                 .ToList();
 
             var bulkRequest = new BulkAddAssetsRequest { Items = items };

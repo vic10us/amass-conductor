@@ -2,6 +2,7 @@ using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AmassOrchestrator.Web.Configuration;
 using AmassOrchestrator.Web.Models;
 using Microsoft.Extensions.Options;
@@ -15,6 +16,11 @@ public class AmassEngineClient : IAmassEngineClient
     private readonly OrchestratorOptions _options;
 
     public const string HttpClientName = "AmassEngine";
+
+    private static readonly JsonSerializerOptions s_writeOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
 
     public AmassEngineClient(IHttpClientFactory httpClientFactory, ILogger<AmassEngineClient> logger, IOptions<OrchestratorOptions> options)
     {
@@ -160,7 +166,7 @@ public class AmassEngineClient : IAmassEngineClient
         try
         {
             var client = _httpClientFactory.CreateClient(HttpClientName);
-            var json = JsonSerializer.Serialize(body);
+            var json = JsonSerializer.Serialize(body, s_writeOptions);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var response = await client.PostAsync(url, content, ct);
             if (!response.IsSuccessStatusCode) return null;
