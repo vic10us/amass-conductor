@@ -14,9 +14,7 @@ public class OrchestratorOptions
     public int WebSocketBufferSize { get; set; } = 4096;
     public int CompletionPollThreshold { get; set; } = 5;
     public string[] SupportedDatabaseSystems { get; set; } = ["postgres", "mysql"];
-    public string LogFilePath { get; set; } = "logs/orchestrator-.log";
-    public int LogRetainedFileCount { get; set; } = 31;
-    public string BruteForceWordlistFile { get; set; } = "wordlists/default-namelist.txt";
+public string BruteForceWordlistFile { get; set; } = "wordlists/default-namelist.txt";
     public string AlterationsWordlistFile { get; set; } = "wordlists/default-alterations.txt";
     public string DefaultTransformationsFile { get; set; } = "wordlists/default-transformations.json";
     public string DatabasePath { get; set; } = "data/orchestrator.db";
