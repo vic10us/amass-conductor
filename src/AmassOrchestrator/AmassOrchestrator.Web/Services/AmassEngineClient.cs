@@ -117,7 +117,7 @@ public class AmassEngineClient : IAmassEngineClient
             yield break;
         }
 
-        var buffer = new byte[4096];
+        var buffer = new byte[_options.WebSocketBufferSize];
 
         while (ws.State == WebSocketState.Open && !ct.IsCancellationRequested)
         {

@@ -2,18 +2,21 @@ using AmassOrchestrator.Web.Components;
 using AmassOrchestrator.Web.Configuration;
 using AmassOrchestrator.Web.Services;
 using k8s;
+using Microsoft.Extensions.Options;
 using Radzen;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var orchestratorConfig = builder.Configuration.GetSection(OrchestratorOptions.SectionName).Get<OrchestratorOptions>() ?? new OrchestratorOptions();
+
 builder.Host.UseSerilog((context, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration)
     .Enrich.FromLogContext()
     .WriteTo.Console(new Serilog.Formatting.Json.JsonFormatter())
-    .WriteTo.File("logs/orchestrator-.log",
+    .WriteTo.File(orchestratorConfig.LogFilePath,
         rollingInterval: RollingInterval.Day,
-        retainedFileCountLimit: 31));
+        retainedFileCountLimit: orchestratorConfig.LogRetainedFileCount));
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -46,8 +49,14 @@ builder.Services.AddSingleton<IAmassEngineClient, AmassEngineClient>();
 builder.Services.AddSingleton<EngineStateStore>();
 builder.Services.AddSingleton<IEnumerationService, EnumerationService>();
 
+builder.Services.AddSingleton<DefaultsLoaderService>();
+
 builder.Services.AddHttpClient(AmassEngineClient.HttpClientName)
-    .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(10))
+    .ConfigureHttpClient((sp, c) =>
+    {
+        var opts = sp.GetRequiredService<IOptions<OrchestratorOptions>>().Value;
+        c.Timeout = TimeSpan.FromSeconds(opts.HttpClientTimeoutSeconds);
+    })
     .AddStandardResilienceHandler();
 
 builder.Services.AddHostedService<EngineMonitorService>();
