@@ -101,6 +101,22 @@ public class EngineMonitorService : BackgroundService
                         if (consecutivePolls >= _options.CurrentValue.CompletionPollThreshold)
                         {
                             isCompleted = true;
+
+                            if (_options.CurrentValue.AutoDeleteCompletedSessions)
+                            {
+                                try
+                                {
+                                    var deleted = await _engineClient.DeleteSessionAsync(pod.PodIP, port, sessionToken, token);
+                                    if (deleted)
+                                        _logger.LogInformation("Auto-deleted completed session {Token} from engine {Pod}", sessionToken, pod.PodName);
+                                    else
+                                        _logger.LogWarning("Auto-delete of session {Token} from engine {Pod} returned false", sessionToken, pod.PodName);
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Failed to auto-delete completed session {Token} from engine {Pod}", sessionToken, pod.PodName);
+                                }
+                            }
                         }
                     }
 

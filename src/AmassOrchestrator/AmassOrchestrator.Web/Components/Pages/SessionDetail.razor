@@ -14,14 +14,9 @@
     <RadzenBreadCrumbItem Text="@ShortToken" />
 </RadzenBreadCrumb>
 
-@if (_state == null || _session == null)
+@if (_state != null && _session != null)
 {
-    <RadzenAlert AlertStyle="AlertStyle.Warning" class="rz-mt-4">
-        Session not found. It may have been terminated.
-    </RadzenAlert>
-}
-else
-{
+    <!-- Live session view -->
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" class="rz-mt-4 rz-mb-4">
         <RadzenText TextStyle="TextStyle.H4" class="rz-m-0">Session @ShortToken</RadzenText>
         <SessionControls PodIp="@_state.Pod.PodIP" Port="@Options.Value.EnginePort" SessionToken="@SessionToken"
@@ -79,6 +74,59 @@ else
         </Tabs>
     </RadzenTabs>
 }
+else if (_dbRecord != null)
+{
+    <!-- Historical session view (session no longer on engine) -->
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" class="rz-mt-4 rz-mb-4">
+        <RadzenText TextStyle="TextStyle.H4" class="rz-m-0">Session @ShortToken</RadzenText>
+        <RadzenBadge Text="Historical" BadgeStyle="BadgeStyle.Info" />
+    </RadzenStack>
+
+    <RadzenText TextStyle="TextStyle.Body1" class="rz-mb-4">
+        Full token: @SessionToken
+    </RadzenText>
+
+    <RadzenTabs>
+        <Tabs>
+            <RadzenTabsItem Text="Stats">
+                <div class="rz-p-4">
+                    @if (_dbRecord.IsCompleted)
+                    {
+                        <RadzenAlert AlertStyle="AlertStyle.Success" ShowIcon="true" class="rz-mb-4">
+                            Enumeration completed.
+                        </RadzenAlert>
+                    }
+                    <ProgressBar Completed="@_dbRecord.WorkItemsCompleted" Total="@_dbRecord.WorkItemsTotal" IsCompleted="@_dbRecord.IsCompleted" />
+                    <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2">
+                        Engine: @_dbRecord.EnginePodName
+                    </RadzenText>
+                    @if (_dbRecord.CompletedAtUtc.HasValue)
+                    {
+                        <RadzenText TextStyle="TextStyle.Body2">
+                            Completed: @_dbRecord.CompletedAtUtc.Value.ToString("yyyy-MM-dd HH:mm:ss UTC")
+                        </RadzenText>
+                    }
+                </div>
+            </RadzenTabsItem>
+            <RadzenTabsItem Text="Logs">
+                <div class="rz-p-4">
+                    <RadzenCard>
+                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-mb-2">
+                            <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">Historical Logs</RadzenText>
+                        </RadzenStack>
+                        <pre style="max-height: 400px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem;">@string.Join("\n", _historicalLogs)</pre>
+                    </RadzenCard>
+                </div>
+            </RadzenTabsItem>
+        </Tabs>
+    </RadzenTabs>
+}
+else
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" class="rz-mt-4">
+        Session not found. It may have been terminated.
+    </RadzenAlert>
+}
 
 @code {
     [Parameter] public string PodName { get; set; } = string.Empty;
@@ -88,6 +136,7 @@ else
 
     private EngineInstanceState? _state;
     private SessionInfo? _session;
+    private SessionRecord? _dbRecord;
     private List<string> _historicalLogs = [];
 
     private static readonly string[] _assetTypes = ["fqdn", "ipaddress", "autonomoussystem", "netblock", "location", "organization"];
@@ -97,7 +146,13 @@ else
         RefreshState();
         StateStore.OnStateChanged += HandleStateChanged;
 
-        if (_session?.IsCompleted == true)
+        if (_state == null || _session == null)
+        {
+            // Session not in live state — load from DB
+            _dbRecord = await SessionRepository.GetByTokenAsync(SessionToken);
+            await LoadHistoricalLogs();
+        }
+        else if (_session.IsCompleted)
         {
             await LoadHistoricalLogs();
         }
@@ -118,9 +173,16 @@ else
     private async void HandleStateChanged()
     {
         var wasCompleted = _session?.IsCompleted ?? false;
+        var hadLiveState = _state != null && _session != null;
         RefreshState();
 
-        if (_session?.IsCompleted == true && !wasCompleted)
+        if (hadLiveState && (_state == null || _session == null))
+        {
+            // Session disappeared from live state (auto-deleted) — switch to DB view
+            _dbRecord = await SessionRepository.GetByTokenAsync(SessionToken);
+            await LoadHistoricalLogs();
+        }
+        else if (_session?.IsCompleted == true && !wasCompleted)
         {
             await LoadHistoricalLogs();
         }
