@@ -95,7 +95,7 @@ public class EngineMonitorService : BackgroundService
                             consecutivePolls = 0;
                         }
 
-                        if (consecutivePolls >= 5)
+                        if (consecutivePolls >= _options.CurrentValue.CompletionPollThreshold)
                         {
                             isCompleted = true;
                         }

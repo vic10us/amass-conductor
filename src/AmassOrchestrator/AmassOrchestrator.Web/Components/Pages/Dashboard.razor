@@ -48,7 +48,7 @@ else
     private async Task StartEnumeration()
     {
         var result = await DialogService.OpenAsync<CreateSessionDialog>("New Enumeration",
-            options: new DialogOptions { Width = "750px" });
+            options: new DialogOptions { Width = "80%" });
 
         if (result is AmassConfig config)
         {
