@@ -42,7 +42,53 @@
         <RadzenTabsItem Text="Database">
             <RadzenStack Gap="1rem" class="rz-p-2">
                 <RadzenFormField Text="Database Connection URL">
-                    <RadzenTextBox @bind-Value="@_databaseUrl" Placeholder="postgres://user:pass@host:5432/dbname" Style="width: 100%;" />
+                    <RadzenTextBox Value="@_databaseUrl" ValueChanged="@OnDatabaseUrlChanged" Placeholder="postgres://user:pass@host:5432/dbname" Style="width: 100%;" />
+                </RadzenFormField>
+                <RadzenText TextStyle="TextStyle.Caption">
+                    Paste a full URL to auto-populate the fields below, or fill them in manually.
+                </RadzenText>
+                <RadzenRow Gap="1rem">
+                    <RadzenColumn Size="6">
+                        <RadzenFormField Text="Database System" Style="width: 100%;">
+                            <RadzenDropDown @bind-Value="@_dbSystem" Data="@(new[] { "postgres", "mysql" })" Style="width: 100%;" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="6">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-pt-4">
+                            <RadzenCheckBox @bind-Value="@_dbPrimary" Name="dbPrimary" />
+                            <RadzenLabel Text="Primary database" Component="dbPrimary" />
+                        </RadzenStack>
+                    </RadzenColumn>
+                </RadzenRow>
+                <RadzenRow Gap="1rem">
+                    <RadzenColumn Size="8">
+                        <RadzenFormField Text="Host" Style="width: 100%;">
+                            <RadzenTextBox @bind-Value="@_dbHost" Placeholder="localhost" Style="width: 100%;" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="4">
+                        <RadzenFormField Text="Port" Style="width: 100%;">
+                            <RadzenTextBox @bind-Value="@_dbPort" Placeholder="5432" Style="width: 100%;" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                </RadzenRow>
+                <RadzenFormField Text="Database Name" Style="width: 100%;">
+                    <RadzenTextBox @bind-Value="@_dbName" Placeholder="amass" Style="width: 100%;" />
+                </RadzenFormField>
+                <RadzenRow Gap="1rem">
+                    <RadzenColumn Size="6">
+                        <RadzenFormField Text="Username" Style="width: 100%;">
+                            <RadzenTextBox @bind-Value="@_dbUsername" Style="width: 100%;" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                    <RadzenColumn Size="6">
+                        <RadzenFormField Text="Password" Style="width: 100%;">
+                            <RadzenPassword @bind-Value="@_dbPassword" Style="width: 100%;" />
+                        </RadzenFormField>
+                    </RadzenColumn>
+                </RadzenRow>
+                <RadzenFormField Text="Options" Style="width: 100%;">
+                    <RadzenTextBox @bind-Value="@_dbOptions" Placeholder="sslmode=disable" Style="width: 100%;" />
                 </RadzenFormField>
             </RadzenStack>
         </RadzenTabsItem>
@@ -61,6 +107,51 @@
                         @_datasourceError
                     </RadzenAlert>
                 }
+            </RadzenStack>
+        </RadzenTabsItem>
+
+        <RadzenTabsItem Text="Transformations">
+            <RadzenStack Gap="0.5rem" class="rz-p-2">
+                <RadzenText TextStyle="TextStyle.Caption">
+                    Configure asset transformations. Disable rows to exclude them from the session config.
+                </RadzenText>
+                <div style="max-height: 400px; overflow-y: auto;">
+                    <RadzenDataGrid TItem="TransformationRow" Data="@_transformations" AllowSorting="false" Style="font-size: 13px;">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="TransformationRow" Title="" Width="40px" Sortable="false">
+                                <Template Context="row">
+                                    <RadzenCheckBox @bind-Value="@row.Enabled" />
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="TransformationRow" Title="Transformation" Width="200px" Sortable="false">
+                                <Template Context="row">
+                                    <RadzenText Text="@row.Key" Style="font-family: monospace; font-size: 12px;" />
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="TransformationRow" Title="Priority" Width="100px" Sortable="false">
+                                <Template Context="row">
+                                    <RadzenNumeric @bind-Value="@row.Priority" Min="0" Max="100" Style="width: 80px;" />
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="TransformationRow" Title="Confidence" Width="110px" Sortable="false">
+                                <Template Context="row">
+                                    <RadzenNumeric @bind-Value="@row.Confidence" Min="0" Max="100" Style="width: 80px;" />
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="TransformationRow" Title="TTL (min)" Width="110px" Sortable="false">
+                                <Template Context="row">
+                                    <RadzenNumeric @bind-Value="@row.Ttl" Min="0" Style="width: 90px;" />
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
+                </div>
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.End" Gap="0.5rem" class="rz-mt-2">
+                    <RadzenFormField Text="Custom Transformation Key" Style="flex: 1;">
+                        <RadzenTextBox @bind-Value="@_customTransformationKey" Placeholder="FromType->ToType" Style="width: 100%;" />
+                    </RadzenFormField>
+                    <RadzenButton Text="Add" ButtonStyle="ButtonStyle.Secondary" Click="@OnAddCustomTransformation" Size="ButtonSize.Small" />
+                </RadzenStack>
             </RadzenStack>
         </RadzenTabsItem>
     </Tabs>
@@ -87,9 +178,70 @@
     private string _bruteForceWordlist = DefaultNamelist;
     private string _alterationsWordlist = DefaultAlterations;
     private string _databaseUrl = string.Empty;
+    private string _dbSystem = "postgres";
+    private bool _dbPrimary = true;
+    private string _dbHost = string.Empty;
+    private string _dbPort = string.Empty;
+    private string _dbName = string.Empty;
+    private string _dbUsername = string.Empty;
+    private string _dbPassword = string.Empty;
+    private string _dbOptions = string.Empty;
     private string _datasourcesYaml = string.Empty;
     private string? _validationError;
     private string? _datasourceError;
+    private string _customTransformationKey = string.Empty;
+    private List<TransformationRow> _transformations = DefaultTransformations();
+
+    private class TransformationRow
+    {
+        public bool Enabled { get; set; }
+        public string Key { get; set; } = string.Empty;
+        public int Priority { get; set; }
+        public int Confidence { get; set; }
+        public int Ttl { get; set; }
+    }
+
+    private static List<TransformationRow> DefaultTransformations() =>
+    [
+        new() { Enabled = true, Key = "FQDN->ALL", Priority = 5, Confidence = 50, Ttl = 1440 },
+        new() { Enabled = true, Key = "FQDN->DomainRecord", Priority = 5, Confidence = 50, Ttl = 43200 },
+        new() { Enabled = true, Key = "IPAddress->ALL", Priority = 5, Confidence = 50, Ttl = 1440 },
+        new() { Enabled = true, Key = "AutonomousSystem->ALL", Priority = 5, Confidence = 50, Ttl = 1440 },
+        new() { Enabled = true, Key = "AutonomousSystem->RDAP", Priority = 5, Confidence = 50, Ttl = 43200 },
+        new() { Enabled = true, Key = "Netblock->ALL", Priority = 5, Confidence = 50, Ttl = 1440 },
+        new() { Enabled = true, Key = "Netblock->RDAP", Priority = 5, Confidence = 50, Ttl = 43200 },
+        new() { Enabled = true, Key = "Organization->ALL", Priority = 5, Confidence = 50, Ttl = 1440 },
+        new() { Enabled = true, Key = "Organization->GLEIF", Priority = 5, Confidence = 50, Ttl = 43200 },
+        new() { Enabled = true, Key = "Location->ALL", Priority = 5, Confidence = 50, Ttl = 1440 },
+        new() { Enabled = true, Key = "DomainRecord->ALL", Priority = 5, Confidence = 50, Ttl = 1440 },
+        new() { Enabled = true, Key = "ContactRecord->ALL", Priority = 5, Confidence = 50, Ttl = 1440 },
+        new() { Enabled = true, Key = "Account->ALL", Priority = 5, Confidence = 50, Ttl = 10800 },
+        new() { Enabled = true, Key = "AutnumRecord->ALL", Priority = 5, Confidence = 50, Ttl = 1440 },
+        new() { Enabled = true, Key = "File->ALL", Priority = 5, Confidence = 50, Ttl = 1440 },
+        new() { Enabled = true, Key = "FundsTransfer->ALL", Priority = 5, Confidence = 50, Ttl = 10800 },
+        new() { Enabled = true, Key = "Identifier->ALL", Priority = 5, Confidence = 50, Ttl = 1440 },
+        new() { Enabled = true, Key = "Identifier->GLEIF", Priority = 5, Confidence = 50, Ttl = 43200 },
+        new() { Enabled = true, Key = "Identifier->RDAP", Priority = 5, Confidence = 50, Ttl = 43200 },
+        new() { Enabled = true, Key = "IPNetRecord->ALL", Priority = 5, Confidence = 50, Ttl = 1440 },
+        new() { Enabled = true, Key = "Person->ALL", Priority = 5, Confidence = 50, Ttl = 43200 },
+        new() { Enabled = true, Key = "Phone->ALL", Priority = 5, Confidence = 50, Ttl = 10800 },
+        new() { Enabled = true, Key = "Product->ALL", Priority = 5, Confidence = 50, Ttl = 10800 },
+        new() { Enabled = true, Key = "ProductRelease->ALL", Priority = 5, Confidence = 50, Ttl = 1440 },
+        new() { Enabled = true, Key = "Service->ALL", Priority = 5, Confidence = 50, Ttl = 1440 },
+        new() { Enabled = true, Key = "TLSCertificate->ALL", Priority = 5, Confidence = 50, Ttl = 10800 },
+        new() { Enabled = true, Key = "URL->ALL", Priority = 5, Confidence = 50, Ttl = 1440 },
+    ];
+
+    private void OnAddCustomTransformation()
+    {
+        var key = _customTransformationKey.Trim();
+        if (string.IsNullOrEmpty(key) || !key.Contains("->"))
+            return;
+        if (_transformations.Any(t => t.Key == key))
+            return;
+        _transformations.Add(new TransformationRow { Enabled = true, Key = key, Priority = 5, Confidence = 50, Ttl = 1440 });
+        _customTransformationKey = string.Empty;
+    }
 
     private void OnCreate()
     {
@@ -123,25 +275,78 @@
         var wordlist = ParseWordlist(_bruteForceWordlist);
         var altWordlist = ParseWordlist(_alterationsWordlist);
 
-        var options = new AmassOptions
-        {
-            BruteForce = new BruteForceOptions { Enabled = _bruteForce, Wordlists = wordlist.Count > 0 ? wordlist : null },
-            Alterations = new AlterationsOptions { Enabled = _alterations, Wordlists = altWordlist.Count > 0 ? altWordlist : null },
-            Active = _active ? true : null,
-            Database = !string.IsNullOrWhiteSpace(_databaseUrl) ? _databaseUrl.Trim() : null,
-            Datasources = datasourceConfig
-        };
-
         var config = new AmassConfig
         {
             Scope = new AmassScope { Domains = domains },
             Active = _active ? true : null,
             RigidBoundaries = _rigidBoundaries ? true : null,
-            Options = options
+            BruteForce = _bruteForce ? true : null,
+            Alterations = _alterations ? true : null,
+            Wordlist = wordlist.Count > 0 ? wordlist : null,
+            AltWorldlist = altWordlist.Count > 0 ? altWordlist : null,
+            Database = HasDatabaseConfig() ? [new AmassDatabase
+            {
+                System = _dbSystem,
+                Primary = _dbPrimary,
+                Url = !string.IsNullOrWhiteSpace(_databaseUrl) ? _databaseUrl.Trim() : null,
+                Host = !string.IsNullOrWhiteSpace(_dbHost) ? _dbHost.Trim() : null,
+                Port = !string.IsNullOrWhiteSpace(_dbPort) ? _dbPort.Trim() : null,
+                DbName = !string.IsNullOrWhiteSpace(_dbName) ? _dbName.Trim() : null,
+                Username = !string.IsNullOrWhiteSpace(_dbUsername) ? _dbUsername.Trim() : null,
+                Password = !string.IsNullOrWhiteSpace(_dbPassword) ? _dbPassword.Trim() : null,
+                Options = !string.IsNullOrWhiteSpace(_dbOptions) ? _dbOptions.Trim() : null,
+            }] : null,
+            DatasourceConfig = datasourceConfig,
+            Transformations = _transformations.Any(t => t.Enabled)
+                ? _transformations
+                    .Where(t => t.Enabled)
+                    .ToDictionary(
+                        t => t.Key,
+                        t => new AmassTransformation
+                        {
+                            Priority = t.Priority,
+                            Confidence = t.Confidence,
+                            Ttl = t.Ttl
+                        })
+                : null
         };
 
         DialogService.Close(config);
     }
+
+    private void OnDatabaseUrlChanged(string value)
+    {
+        _databaseUrl = value;
+        ParseDatabaseUrl();
+    }
+
+    private void ParseDatabaseUrl()
+    {
+        if (string.IsNullOrWhiteSpace(_databaseUrl))
+            return;
+
+        if (Uri.TryCreate(_databaseUrl.Trim(), UriKind.Absolute, out var uri))
+        {
+            _dbSystem = uri.Scheme;
+            _dbHost = uri.Host;
+            _dbPort = uri.Port > 0 ? uri.Port.ToString() : string.Empty;
+            _dbName = uri.AbsolutePath.TrimStart('/');
+
+            if (!string.IsNullOrEmpty(uri.UserInfo))
+            {
+                var parts = uri.UserInfo.Split(':', 2);
+                _dbUsername = Uri.UnescapeDataString(parts[0]);
+                _dbPassword = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]) : string.Empty;
+            }
+
+            _dbOptions = string.IsNullOrEmpty(uri.Query) ? string.Empty : uri.Query.TrimStart('?');
+        }
+    }
+
+    private bool HasDatabaseConfig() =>
+        !string.IsNullOrWhiteSpace(_databaseUrl) ||
+        !string.IsNullOrWhiteSpace(_dbHost) ||
+        !string.IsNullOrWhiteSpace(_dbName);
 
     private static List<string> ParseWordlist(string text) =>
         text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
