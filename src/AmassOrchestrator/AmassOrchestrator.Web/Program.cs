@@ -14,11 +14,7 @@ var orchestratorConfig = builder.Configuration.GetSection(OrchestratorOptions.Se
 
 builder.Host.UseSerilog((context, configuration) => configuration
     .ReadFrom.Configuration(context.Configuration)
-    .Enrich.FromLogContext()
-    .WriteTo.Console(new Serilog.Formatting.Json.JsonFormatter())
-    .WriteTo.File(orchestratorConfig.LogFilePath,
-        rollingInterval: RollingInterval.Day,
-        retainedFileCountLimit: orchestratorConfig.LogRetainedFileCount));
+    .Enrich.FromLogContext());
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
