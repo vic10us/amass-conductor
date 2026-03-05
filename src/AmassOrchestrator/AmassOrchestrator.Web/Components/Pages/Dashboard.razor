@@ -1,11 +1,16 @@
 @page "/"
 @implements IDisposable
 @inject EngineStateStore StateStore
-@rendermode InteractiveServer
+@inject IEnumerationService EnumerationService
+@inject DialogService DialogService
+@inject NotificationService NotificationService
 
 <PageTitle>Dashboard - Amass Orchestrator</PageTitle>
 
-<RadzenText TextStyle="TextStyle.H4" class="rz-mb-4">Engine Dashboard</RadzenText>
+<RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" class="rz-mb-4">
+    <RadzenText TextStyle="TextStyle.H4" class="rz-m-0">Engine Dashboard</RadzenText>
+    <RadzenButton Text="New Enumeration" Icon="play_arrow" ButtonStyle="ButtonStyle.Success" Click="@StartEnumeration" />
+</RadzenStack>
 
 @if (!_states.Any())
 {
@@ -38,6 +43,27 @@ else
     {
         _states = StateStore.States.Values.ToList();
         await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task StartEnumeration()
+    {
+        var result = await DialogService.OpenAsync<CreateSessionDialog>("New Enumeration",
+            options: new DialogOptions { Width = "750px" });
+
+        if (result is AmassConfig config)
+        {
+            var enumResult = await EnumerationService.StartEnumerationAsync(config);
+
+            if (enumResult.Success)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, "Enumeration started",
+                    $"Session {enumResult.SessionToken} on {enumResult.EnginePodName}");
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", enumResult.ErrorMessage ?? "Unknown error");
+            }
+        }
     }
 
     public void Dispose()

@@ -1,13 +1,12 @@
 @page "/engine/{PodName}"
 @implements IDisposable
 @inject EngineStateStore StateStore
-@inject IAmassEngineClient EngineClient
+@inject IEnumerationService EnumerationService
 @inject NavigationManager Navigation
 @inject DialogService DialogService
 @inject NotificationService NotificationService
 @inject IOptions<AmassOrchestrator.Web.Configuration.OrchestratorOptions> Options
 @using Microsoft.Extensions.Options
-@rendermode InteractiveServer
 
 <PageTitle>@PodName - Amass Orchestrator</PageTitle>
 
@@ -35,6 +34,7 @@ else
 
     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" class="rz-mb-4">
         <RadzenButton Text="Create Session" Icon="add" ButtonStyle="ButtonStyle.Primary" Click="@ShowCreateDialog" />
+        <RadzenButton Text="New Enumeration (Auto)" Icon="play_arrow" ButtonStyle="ButtonStyle.Success" Click="@StartAutoEnumeration" />
     </RadzenStack>
 
     <RadzenText TextStyle="TextStyle.H5" class="rz-mb-2">Sessions (@_state.Sessions.Count)</RadzenText>
@@ -88,29 +88,43 @@ else
     {
         if (_state == null) return;
 
-        var domains = "";
         var result = await DialogService.OpenAsync<CreateSessionDialog>("Create Session",
-            new Dictionary<string, object?> { { "Domains", domains } },
-            new DialogOptions { Width = "500px" });
+            options: new DialogOptions { Width = "750px" });
 
-        if (result is string domainsInput && !string.IsNullOrWhiteSpace(domainsInput))
+        if (result is AmassConfig config)
         {
-            var config = new AmassConfig
-            {
-                Scope = new AmassScope
-                {
-                    Domains = domainsInput.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList()
-                }
-            };
+            var enumResult = await EnumerationService.StartEnumerationOnEngineAsync(
+                Uri.UnescapeDataString(PodName), config);
 
-            var response = await EngineClient.CreateSessionAsync(_state.Pod.PodIP, Options.Value.EnginePort, config);
-            if (response != null)
+            if (enumResult.Success)
             {
-                NotificationService.Notify(NotificationSeverity.Success, "Session created", response.SessionToken);
+                NotificationService.Notify(NotificationSeverity.Success, "Session created",
+                    $"Session {enumResult.SessionToken} with FQDN assets submitted");
             }
             else
             {
-                NotificationService.Notify(NotificationSeverity.Error, "Failed to create session");
+                NotificationService.Notify(NotificationSeverity.Error, "Failed to create session", enumResult.ErrorMessage ?? "Unknown error");
+            }
+        }
+    }
+
+    private async Task StartAutoEnumeration()
+    {
+        var result = await DialogService.OpenAsync<CreateSessionDialog>("New Enumeration (Auto)",
+            options: new DialogOptions { Width = "750px" });
+
+        if (result is AmassConfig config)
+        {
+            var enumResult = await EnumerationService.StartEnumerationAsync(config);
+
+            if (enumResult.Success)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, "Enumeration started",
+                    $"Session {enumResult.SessionToken} on {enumResult.EnginePodName}");
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", enumResult.ErrorMessage ?? "Unknown error");
             }
         }
     }
