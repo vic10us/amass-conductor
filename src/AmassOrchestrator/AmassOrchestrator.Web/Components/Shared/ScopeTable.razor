@@ -1,4 +1,4 @@
-@using System.Text
+@using System.Text.Json
 
 <RadzenCard>
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" class="rz-mb-2">
@@ -47,9 +47,30 @@
         StateHasChanged();
 
         var response = await EngineClient.GetScopeAsync(PodIp, Port, SessionToken, AssetType);
-        _items = response?.Data?.Select(d => Encoding.UTF8.GetString(d)).ToList() ?? [];
+        _items = response?.Data?.Select(d => ExtractDisplayValue(d, AssetType)).ToList() ?? [];
 
         _loading = false;
         StateHasChanged();
+    }
+
+    private static string ExtractDisplayValue(JsonElement element, string assetType)
+    {
+        var propertyName = assetType switch
+        {
+            "fqdn" => "name",
+            "ipaddress" => "address",
+            "netblock" => "cidr",
+            "autonomoussystem" => "number",
+            "location" => "address",
+            "organization" => "name",
+            _ => null
+        };
+
+        if (propertyName != null && element.TryGetProperty(propertyName, out var prop))
+        {
+            return prop.ToString();
+        }
+
+        return element.GetRawText();
     }
 }

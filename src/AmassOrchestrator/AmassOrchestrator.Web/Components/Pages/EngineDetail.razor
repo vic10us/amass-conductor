@@ -54,7 +54,7 @@ else
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="SessionInfo" Title="Progress">
                     <Template Context="session">
-                        <ProgressBar Completed="@session.WorkItemsCompleted" Total="@session.WorkItemsTotal" />
+                        <ProgressBar Completed="@session.WorkItemsCompleted" Total="@session.WorkItemsTotal" IsCompleted="@session.IsCompleted" />
                     </Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="SessionInfo" Title="Actions" Width="120px">

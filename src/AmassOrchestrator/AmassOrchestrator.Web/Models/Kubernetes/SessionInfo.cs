@@ -3,7 +3,9 @@ namespace AmassOrchestrator.Web.Models.Kubernetes;
 public record SessionInfo(
     string Token,
     int WorkItemsCompleted,
-    int WorkItemsTotal)
+    int WorkItemsTotal,
+    bool IsCompleted = false,
+    int ConsecutiveCompletionPolls = 0)
 {
     public double ProgressPercent =>
         WorkItemsTotal > 0
