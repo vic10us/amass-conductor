@@ -54,7 +54,7 @@
                 <RadzenRow Gap="1rem">
                     <RadzenColumn Size="6">
                         <RadzenFormField Text="Database System" Style="width: 100%;">
-                            <RadzenDropDown @bind-Value="@_dbSystem" Data="@OrchestratorOptions.Value.SupportedDatabaseSystems" Style="width: 100%;" />
+                            <RadzenDropDown TValue="string" @bind-Value="@_dbSystem" Data="@_supportedDbSystems" AllowClear="false" Style="width: 100%;" />
                         </RadzenFormField>
                     </RadzenColumn>
                     <RadzenColumn Size="6">
@@ -195,12 +195,14 @@
     private string? _datasourceError;
     private string _customTransformationKey = string.Empty;
     private List<TransformationRow> _transformations = [];
+    private List<string> _supportedDbSystems = [];
 
     protected override void OnInitialized()
     {
         _bruteForceWordlist = DefaultsLoader.GetBruteForceWordlist();
         _alterationsWordlist = DefaultsLoader.GetAlterationsWordlist();
         _transformations = DefaultsLoader.GetDefaultTransformations();
+        _supportedDbSystems = OrchestratorOptions.Value.SupportedDatabaseSystems.Distinct().ToList();
     }
 
     private void OnAddCustomTransformation()
@@ -296,21 +298,34 @@
         if (string.IsNullOrWhiteSpace(_databaseUrl))
             return;
 
-        if (Uri.TryCreate(_databaseUrl.Trim(), UriKind.Absolute, out var uri))
+        try
         {
-            _dbSystem = uri.Scheme;
-            _dbHost = uri.Host;
-            _dbPort = uri.Port > 0 ? uri.Port.ToString() : string.Empty;
-            _dbName = uri.AbsolutePath.TrimStart('/');
-
-            if (!string.IsNullOrEmpty(uri.UserInfo))
+            if (Uri.TryCreate(_databaseUrl.Trim(), UriKind.Absolute, out var uri))
             {
-                var parts = uri.UserInfo.Split(':', 2);
-                _dbUsername = Uri.UnescapeDataString(parts[0]);
-                _dbPassword = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]) : string.Empty;
-            }
+                var supported = OrchestratorOptions.Value.SupportedDatabaseSystems;
+                var scheme = uri.Scheme;
+                if (supported.Contains(scheme, StringComparer.OrdinalIgnoreCase))
+                {
+                    _dbSystem = scheme;
+                }
 
-            _dbOptions = string.IsNullOrEmpty(uri.Query) ? string.Empty : uri.Query.TrimStart('?');
+                _dbHost = uri.Host;
+                _dbPort = uri.Port > 0 ? uri.Port.ToString() : string.Empty;
+                _dbName = uri.AbsolutePath.TrimStart('/');
+
+                if (!string.IsNullOrEmpty(uri.UserInfo))
+                {
+                    var parts = uri.UserInfo.Split(':', 2);
+                    _dbUsername = Uri.UnescapeDataString(parts[0]);
+                    _dbPassword = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]) : string.Empty;
+                }
+
+                _dbOptions = string.IsNullOrEmpty(uri.Query) ? string.Empty : uri.Query.TrimStart('?');
+            }
+        }
+        catch
+        {
+            // Silently ignore parse errors to prevent circuit crashes
         }
     }
 
