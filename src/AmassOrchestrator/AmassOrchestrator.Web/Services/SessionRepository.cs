@@ -132,6 +132,19 @@ public class SessionRepository : ISessionRepository
         return await db.Logs.OrderByDescending(l => l.TimestampUtc).Take(limit).OrderBy(l => l.TimestampUtc).ToListAsync();
     }
 
+    public async Task<List<LogRecord>> GetFilteredLogsAsync(string? sessionToken = null, string? enginePodName = null, int limit = 500)
+    {
+        await using var db = await _contextFactory.CreateDbContextAsync();
+        IQueryable<LogRecord> query = db.Logs;
+
+        if (!string.IsNullOrEmpty(sessionToken))
+            query = query.Where(l => l.SessionToken == sessionToken);
+        if (!string.IsNullOrEmpty(enginePodName))
+            query = query.Where(l => l.EnginePodName == enginePodName);
+
+        return await query.OrderByDescending(l => l.TimestampUtc).Take(limit).OrderBy(l => l.TimestampUtc).ToListAsync();
+    }
+
     public async Task DeleteLogsAsync(string sessionToken)
     {
         await using var db = await _contextFactory.CreateDbContextAsync();

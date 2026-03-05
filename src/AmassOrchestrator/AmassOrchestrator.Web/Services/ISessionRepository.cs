@@ -15,5 +15,6 @@ public interface ISessionRepository
     Task AddLogAsync(string sessionToken, string enginePodName, string message);
     Task<List<LogRecord>> GetLogsAsync(string sessionToken, int? limit = null);
     Task<List<LogRecord>> GetRecentLogsAsync(int limit = 100);
+    Task<List<LogRecord>> GetFilteredLogsAsync(string? sessionToken = null, string? enginePodName = null, int limit = 500);
     Task DeleteLogsAsync(string sessionToken);
 }

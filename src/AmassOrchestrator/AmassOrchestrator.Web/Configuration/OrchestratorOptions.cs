@@ -21,4 +21,5 @@ public class OrchestratorOptions
     public string DefaultTransformationsFile { get; set; } = "wordlists/default-transformations.json";
     public string DatabasePath { get; set; } = "data/orchestrator.db";
     public int MaxActiveSessionsPerEngine { get; set; } = 1;
+    public bool AutoDeleteCompletedSessions { get; set; } = true;
 }
