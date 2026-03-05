@@ -44,6 +44,7 @@ builder.Services.AddSingleton<IKubernetes>(_ =>
 builder.Services.AddSingleton<IKubernetesDiscoveryService, KubernetesDiscoveryService>();
 builder.Services.AddSingleton<IAmassEngineClient, AmassEngineClient>();
 builder.Services.AddSingleton<EngineStateStore>();
+builder.Services.AddSingleton<IEnumerationService, EnumerationService>();
 
 builder.Services.AddHttpClient(AmassEngineClient.HttpClientName)
     .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(10))
