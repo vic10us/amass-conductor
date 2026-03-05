@@ -12,7 +12,7 @@ public class EnumerationServiceTests
 {
     private readonly EngineStateStore _stateStore = new();
     private readonly Mock<IAmassEngineClient> _engineClient = new();
-    private readonly IOptions<OrchestratorOptions> _options = Options.Create(new OrchestratorOptions());
+    private readonly IOptions<OrchestratorOptions> _options = Options.Create(new OrchestratorOptions { EnginePort = 8080 });
     private readonly EnumerationService _sut;
 
     public EnumerationServiceTests()

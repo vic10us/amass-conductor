@@ -37,7 +37,7 @@ public class EngineMonitorServiceTests
 
         var clientMock = new Mock<IAmassEngineClient>();
         clientMock.Setup(c => c.HealthCheckAsync("10.0.0.1", 8080, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new HealthCheckResponse { Result = "ok" });
+            .ReturnsAsync(new HealthCheckResponse { Result = "Amass Engine OK" });
         clientMock.Setup(c => c.ListSessionsAsync("10.0.0.1", 8080, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ListSessionsResponse { SessionTokens = ["token-1"] });
         clientMock.Setup(c => c.GetSessionStatsAsync("10.0.0.1", 8080, "token-1", It.IsAny<CancellationToken>()))
@@ -85,7 +85,7 @@ public class EngineMonitorServiceTests
 
         var clientMock = new Mock<IAmassEngineClient>();
         clientMock.Setup(c => c.HealthCheckAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new HealthCheckResponse { Result = "ok" });
+            .ReturnsAsync(new HealthCheckResponse { Result = "Amass Engine OK" });
         clientMock.Setup(c => c.ListSessionsAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ListSessionsResponse { SessionTokens = [] });
 
