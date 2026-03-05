@@ -120,31 +120,25 @@
             }
         }
 
+        var wordlist = ParseWordlist(_bruteForceWordlist);
+        var altWordlist = ParseWordlist(_alterationsWordlist);
+
+        var options = new AmassOptions
+        {
+            BruteForce = new BruteForceOptions { Enabled = _bruteForce, Wordlists = wordlist.Count > 0 ? wordlist : null },
+            Alterations = new AlterationsOptions { Enabled = _alterations, Wordlists = altWordlist.Count > 0 ? altWordlist : null },
+            Active = _active ? true : null,
+            Database = !string.IsNullOrWhiteSpace(_databaseUrl) ? _databaseUrl.Trim() : null,
+            Datasources = datasourceConfig
+        };
+
         var config = new AmassConfig
         {
             Scope = new AmassScope { Domains = domains },
             Active = _active ? true : null,
-            BruteForce = _bruteForce ? true : null,
-            Alterations = _alterations ? true : null,
             RigidBoundaries = _rigidBoundaries ? true : null,
-            DatasourceConfig = datasourceConfig
+            Options = options
         };
-
-        var wordlist = ParseWordlist(_bruteForceWordlist);
-        if (wordlist.Count > 0)
-            config.Wordlist = wordlist;
-
-        var altWordlist = ParseWordlist(_alterationsWordlist);
-        if (altWordlist.Count > 0)
-            config.AltWordlist = altWordlist;
-
-        if (!string.IsNullOrWhiteSpace(_databaseUrl))
-        {
-            config.Database =
-            [
-                new AmassDatabase { System = "postgres", Primary = true, Url = _databaseUrl.Trim() }
-            ];
-        }
 
         DialogService.Close(config);
     }
