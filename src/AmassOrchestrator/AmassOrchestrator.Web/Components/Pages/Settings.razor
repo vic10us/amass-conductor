@@ -23,6 +23,12 @@
         <RadzenFormField Text="Poll Interval (seconds)">
             <RadzenNumeric TValue="int" @bind-Value="@_pollInterval" Min="1" Max="300" />
         </RadzenFormField>
+        <RadzenFormField Text="Max Active Sessions Per Engine">
+            <RadzenNumeric TValue="int" @bind-Value="@_maxActiveSessionsPerEngine" Min="1" Max="100" />
+        </RadzenFormField>
+        <RadzenFormField Text="Database Path">
+            <RadzenTextBox Value="@_databasePath" ReadOnly="true" />
+        </RadzenFormField>
         <RadzenButton Text="Save" Icon="save" ButtonStyle="ButtonStyle.Primary" Click="@Save" />
     </RadzenStack>
 </RadzenCard>
@@ -36,6 +42,8 @@
     private string _statefulSetName = "amass-engine";
     private int _enginePort = 8080;
     private int _pollInterval = 10;
+    private int _maxActiveSessionsPerEngine = 1;
+    private string _databasePath = "";
 
     protected override void OnInitialized()
     {
@@ -44,6 +52,8 @@
         _statefulSetName = current.StatefulSetName;
         _enginePort = current.EnginePort;
         _pollInterval = current.PollIntervalSeconds;
+        _maxActiveSessionsPerEngine = current.MaxActiveSessionsPerEngine;
+        _databasePath = current.DatabasePath;
     }
 
     private void Save()
@@ -53,6 +63,7 @@
         Configuration[$"{OrchestratorOptions.SectionName}:{nameof(OrchestratorOptions.StatefulSetName)}"] = _statefulSetName;
         Configuration[$"{OrchestratorOptions.SectionName}:{nameof(OrchestratorOptions.EnginePort)}"] = _enginePort.ToString();
         Configuration[$"{OrchestratorOptions.SectionName}:{nameof(OrchestratorOptions.PollIntervalSeconds)}"] = _pollInterval.ToString();
+        Configuration[$"{OrchestratorOptions.SectionName}:{nameof(OrchestratorOptions.MaxActiveSessionsPerEngine)}"] = _maxActiveSessionsPerEngine.ToString();
 
         NotificationService.Notify(NotificationSeverity.Success, "Settings saved", "Changes take effect on next poll cycle.");
     }

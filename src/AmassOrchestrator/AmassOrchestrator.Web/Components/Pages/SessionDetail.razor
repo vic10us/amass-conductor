@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject EngineStateStore StateStore
 @inject IOptions<AmassOrchestrator.Web.Configuration.OrchestratorOptions> Options
+@inject ISessionRepository SessionRepository
 @inject NavigationManager Navigation
 @using Microsoft.Extensions.Options
 
@@ -49,7 +50,19 @@ else
             </RadzenTabsItem>
             <RadzenTabsItem Text="Logs">
                 <div class="rz-p-4">
-                    <LogViewer PodIp="@_state.Pod.PodIP" Port="@Options.Value.EnginePort" SessionToken="@SessionToken" />
+                    @if (_session.IsCompleted)
+                    {
+                        <RadzenCard>
+                            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-mb-2">
+                                <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">Historical Logs</RadzenText>
+                            </RadzenStack>
+                            <pre style="max-height: 400px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem;">@string.Join("\n", _historicalLogs)</pre>
+                        </RadzenCard>
+                    }
+                    else
+                    {
+                        <LogViewer PodIp="@_state.Pod.PodIP" Port="@Options.Value.EnginePort" SessionToken="@SessionToken" />
+                    }
                 </div>
             </RadzenTabsItem>
             <RadzenTabsItem Text="Scope">
@@ -75,13 +88,25 @@ else
 
     private EngineInstanceState? _state;
     private SessionInfo? _session;
+    private List<string> _historicalLogs = [];
 
     private static readonly string[] _assetTypes = ["fqdn", "ipaddress", "autonomoussystem", "netblock", "location", "organization"];
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         RefreshState();
         StateStore.OnStateChanged += HandleStateChanged;
+
+        if (_session?.IsCompleted == true)
+        {
+            await LoadHistoricalLogs();
+        }
+    }
+
+    private async Task LoadHistoricalLogs()
+    {
+        var logs = await SessionRepository.GetLogsAsync(SessionToken);
+        _historicalLogs = logs.Select(l => l.Message).ToList();
     }
 
     private void RefreshState()
@@ -92,7 +117,14 @@ else
 
     private async void HandleStateChanged()
     {
+        var wasCompleted = _session?.IsCompleted ?? false;
         RefreshState();
+
+        if (_session?.IsCompleted == true && !wasCompleted)
+        {
+            await LoadHistoricalLogs();
+        }
+
         await InvokeAsync(StateHasChanged);
     }
 

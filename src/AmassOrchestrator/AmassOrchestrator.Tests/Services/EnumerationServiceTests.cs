@@ -21,7 +21,8 @@ public class EnumerationServiceTests
             _stateStore,
             _engineClient.Object,
             _options,
-            Mock.Of<ILogger<EnumerationService>>());
+            Mock.Of<ILogger<EnumerationService>>(),
+            Mock.Of<ISessionRepository>());
     }
 
     private static EngineInstanceState MakeEngine(string name, int ordinal, bool healthy = true, bool ready = true, int sessionCount = 0)

@@ -1,0 +1,377 @@
+@page "/sessions"
+@implements IDisposable
+@inject EngineStateStore StateStore
+@inject ISessionRepository SessionRepository
+@inject IEnumerationService EnumerationService
+@inject IAmassEngineClient EngineClient
+@inject IOptions<AmassOrchestrator.Web.Configuration.OrchestratorOptions> Options
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+@using Microsoft.Extensions.Options
+@using System.Text.Json
+
+<PageTitle>Sessions - Amass Orchestrator</PageTitle>
+
+<RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" class="rz-mb-4">
+    <RadzenText TextStyle="TextStyle.H4" class="rz-m-0">All Sessions</RadzenText>
+    <RadzenButton Text="New Enumeration" Icon="play_arrow" ButtonStyle="ButtonStyle.Success" Click="@StartEnumeration" />
+</RadzenStack>
+
+<RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" class="rz-mb-4" AlignItems="AlignItems.End">
+    <RadzenFormField Text="Status">
+        <RadzenDropDown TValue="string" Data="@_statusOptions" @bind-Value="@_statusFilter" Change="@(_ => ApplyFilters())" Style="width: 160px;" />
+    </RadzenFormField>
+    <RadzenFormField Text="Engine">
+        <RadzenDropDown TValue="string" Data="@_engineOptions" @bind-Value="@_engineFilter" Change="@(_ => ApplyFilters())" Style="width: 200px;" AllowClear="true" Placeholder="All engines" />
+    </RadzenFormField>
+    <RadzenFormField Text="Domain Search">
+        <RadzenTextBox @bind-Value="@_domainSearch" Change="@(_ => ApplyFilters())" Placeholder="Search domains..." Style="width: 200px;" />
+    </RadzenFormField>
+</RadzenStack>
+
+@if (_selectedSessions.Any())
+{
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" class="rz-mb-4">
+        <RadzenButton Text="Stop Selected" Icon="stop" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" Click="@StopSelected" />
+        <RadzenButton Text="Delete Selected" Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@DeleteSelected" />
+        <RadzenButton Text="Restart Selected" Icon="replay" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Small" Click="@RestartSelected" />
+        <RadzenText TextStyle="TextStyle.Body2" class="rz-my-auto">@(_selectedSessions.Count) selected</RadzenText>
+    </RadzenStack>
+}
+
+<RadzenDataGrid @ref="_grid" Data="@_filteredSessions" TItem="SessionViewModel"
+                SelectionMode="DataGridSelectionMode.Multiple" @bind-Value="@_selectedSessions"
+                AllowPaging="true" PageSize="20" AllowSorting="true"
+                Density="Density.Compact" Style="width: 100%;">
+    <Columns>
+        <RadzenDataGridColumn TItem="SessionViewModel" Width="40px" Sortable="false" Filterable="false">
+            <Template Context="session">
+                <RadzenCheckBox TValue="bool" Value="@(_selectedSessions.Contains(session))"
+                                Change="@(v => ToggleSelection(session, v))" />
+            </Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="SessionViewModel" Property="Token" Title="Token" Width="140px">
+            <Template Context="session">
+                <RadzenLink Text="@ShortToken(session.Token)" Path="@SessionPath(session)" />
+            </Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="SessionViewModel" Property="EnginePodName" Title="Engine" Width="180px" />
+        <RadzenDataGridColumn TItem="SessionViewModel" Property="Domains" Title="Domains" Width="200px">
+            <Template Context="session">
+                @FormatDomains(session.Domains)
+            </Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="SessionViewModel" Title="Progress" Width="180px" Sortable="false">
+            <Template Context="session">
+                <ProgressBar Completed="@session.WorkItemsCompleted" Total="@session.WorkItemsTotal" IsCompleted="@session.IsCompleted" />
+            </Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="SessionViewModel" Property="IsCompleted" Title="Status" Width="120px">
+            <Template Context="session">
+                @if (session.IsCompleted)
+                {
+                    <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Completed" />
+                }
+                else if (session.IsLive)
+                {
+                    <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="Active" />
+                }
+                else
+                {
+                    <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="Historical" />
+                }
+            </Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="SessionViewModel" Property="CreatedAtUtc" Title="Created" Width="160px">
+            <Template Context="session">
+                @FormatRelativeTime(session.CreatedAtUtc)
+            </Template>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="SessionViewModel" Title="Actions" Width="100px" Sortable="false">
+            <Template Context="session">
+                @if (session.IsLive && !session.IsCompleted)
+                {
+                    <RadzenButton Icon="stop" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.ExtraSmall"
+                                  Variant="Variant.Text" Click="@(() => StopSession(session))" />
+                }
+                @if (session.IsCompleted)
+                {
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.ExtraSmall"
+                                  Variant="Variant.Text" Click="@(() => DeleteSession(session))" />
+                }
+            </Template>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>
+
+@code {
+    private RadzenDataGrid<SessionViewModel>? _grid;
+    private List<SessionViewModel> _allSessions = [];
+    private List<SessionViewModel> _filteredSessions = [];
+    private IList<SessionViewModel> _selectedSessions = new List<SessionViewModel>();
+
+    private string _statusFilter = "All";
+    private string? _engineFilter;
+    private string? _domainSearch;
+
+    private static readonly string[] _statusOptions = ["All", "Active", "Completed"];
+    private List<string> _engineOptions = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSessions();
+        StateStore.OnStateChanged += HandleStateChanged;
+    }
+
+    private async Task LoadSessions()
+    {
+        var dbSessions = await SessionRepository.GetAllAsync();
+        var liveStates = StateStore.States;
+
+        var liveSessionMap = new Dictionary<string, (SessionInfo Session, string PodName, string PodIp)>();
+        foreach (var kvp in liveStates)
+        {
+            foreach (var session in kvp.Value.Sessions)
+            {
+                liveSessionMap[session.Token] = (session, kvp.Key, kvp.Value.Pod.PodIP);
+            }
+        }
+
+        var viewModels = new Dictionary<string, SessionViewModel>();
+
+        // DB sessions first
+        foreach (var rec in dbSessions)
+        {
+            viewModels[rec.Token] = new SessionViewModel
+            {
+                Token = rec.Token,
+                EnginePodName = rec.EnginePodName,
+                WorkItemsCompleted = rec.WorkItemsCompleted,
+                WorkItemsTotal = rec.WorkItemsTotal,
+                IsCompleted = rec.IsCompleted,
+                CreatedAtUtc = rec.CreatedAtUtc,
+                CompletedAtUtc = rec.CompletedAtUtc,
+                Domains = rec.Domains
+            };
+        }
+
+        // Overlay live data
+        foreach (var (token, live) in liveSessionMap)
+        {
+            if (viewModels.TryGetValue(token, out var vm))
+            {
+                vm.WorkItemsCompleted = live.Session.WorkItemsCompleted;
+                vm.WorkItemsTotal = live.Session.WorkItemsTotal;
+                vm.IsCompleted = live.Session.IsCompleted;
+                vm.IsLive = true;
+                vm.PodIp = live.PodIp;
+            }
+            else
+            {
+                viewModels[token] = new SessionViewModel
+                {
+                    Token = token,
+                    EnginePodName = live.PodName,
+                    WorkItemsCompleted = live.Session.WorkItemsCompleted,
+                    WorkItemsTotal = live.Session.WorkItemsTotal,
+                    IsCompleted = live.Session.IsCompleted,
+                    IsLive = true,
+                    PodIp = live.PodIp,
+                    CreatedAtUtc = DateTime.UtcNow
+                };
+            }
+        }
+
+        _allSessions = viewModels.Values.OrderByDescending(s => s.CreatedAtUtc).ToList();
+        _engineOptions = _allSessions.Select(s => s.EnginePodName).Distinct().OrderBy(e => e).ToList();
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        var filtered = _allSessions.AsEnumerable();
+
+        if (_statusFilter == "Active")
+            filtered = filtered.Where(s => !s.IsCompleted);
+        else if (_statusFilter == "Completed")
+            filtered = filtered.Where(s => s.IsCompleted);
+
+        if (!string.IsNullOrEmpty(_engineFilter))
+            filtered = filtered.Where(s => s.EnginePodName == _engineFilter);
+
+        if (!string.IsNullOrEmpty(_domainSearch))
+            filtered = filtered.Where(s => s.Domains != null && s.Domains.Contains(_domainSearch, StringComparison.OrdinalIgnoreCase));
+
+        _filteredSessions = filtered.ToList();
+    }
+
+    private async void HandleStateChanged()
+    {
+        await LoadSessions();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task StartEnumeration()
+    {
+        var result = await DialogService.OpenAsync<CreateSessionDialog>("New Enumeration",
+            options: new DialogOptions { Width = "80%" });
+
+        if (result is AmassConfig config)
+        {
+            var enumResult = await EnumerationService.StartEnumerationAsync(config);
+            if (enumResult.Success)
+            {
+                NotificationService.Notify(NotificationSeverity.Success, "Enumeration started",
+                    $"Session {enumResult.SessionToken} on {enumResult.EnginePodName}");
+                await LoadSessions();
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", enumResult.ErrorMessage ?? "Unknown error");
+            }
+        }
+    }
+
+    private async Task StopSession(SessionViewModel session)
+    {
+        if (string.IsNullOrEmpty(session.PodIp)) return;
+        var confirmed = await DialogService.Confirm("Stop this session?", "Confirm Stop", new ConfirmOptions { OkButtonText = "Stop", CancelButtonText = "Cancel" });
+        if (confirmed != true) return;
+
+        var success = await EngineClient.DeleteSessionAsync(session.PodIp, Options.Value.EnginePort, session.Token);
+        NotificationService.Notify(success ? NotificationSeverity.Success : NotificationSeverity.Error,
+            success ? "Session stopped" : "Failed to stop session", session.Token);
+    }
+
+    private async Task DeleteSession(SessionViewModel session)
+    {
+        var confirmed = await DialogService.Confirm("Delete this session record?", "Confirm Delete", new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel" });
+        if (confirmed != true) return;
+
+        await SessionRepository.DeleteAsync(session.Token);
+        await SessionRepository.DeleteLogsAsync(session.Token);
+        NotificationService.Notify(NotificationSeverity.Success, "Session deleted", session.Token);
+        await LoadSessions();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task StopSelected()
+    {
+        var liveSessions = _selectedSessions.Where(s => s.IsLive && !s.IsCompleted).ToList();
+        if (!liveSessions.Any())
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "No active live sessions selected");
+            return;
+        }
+
+        var confirmed = await DialogService.Confirm($"Stop {liveSessions.Count} active session(s)?", "Confirm Bulk Stop");
+        if (confirmed != true) return;
+
+        foreach (var session in liveSessions)
+        {
+            if (!string.IsNullOrEmpty(session.PodIp))
+                await EngineClient.DeleteSessionAsync(session.PodIp, Options.Value.EnginePort, session.Token);
+        }
+
+        NotificationService.Notify(NotificationSeverity.Success, $"Stopped {liveSessions.Count} session(s)");
+        _selectedSessions = new List<SessionViewModel>();
+    }
+
+    private async Task DeleteSelected()
+    {
+        var completedSessions = _selectedSessions.Where(s => s.IsCompleted).ToList();
+        if (!completedSessions.Any())
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "No completed sessions selected for deletion");
+            return;
+        }
+
+        var confirmed = await DialogService.Confirm($"Delete {completedSessions.Count} session record(s)?", "Confirm Bulk Delete");
+        if (confirmed != true) return;
+
+        foreach (var session in completedSessions)
+        {
+            await SessionRepository.DeleteAsync(session.Token);
+            await SessionRepository.DeleteLogsAsync(session.Token);
+        }
+
+        NotificationService.Notify(NotificationSeverity.Success, $"Deleted {completedSessions.Count} session(s)");
+        _selectedSessions = new List<SessionViewModel>();
+        await LoadSessions();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RestartSelected()
+    {
+        var completedSessions = _selectedSessions.Where(s => s.IsCompleted).ToList();
+        if (!completedSessions.Any())
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "No completed sessions selected for restart");
+            return;
+        }
+
+        var confirmed = await DialogService.Confirm($"Restart {completedSessions.Count} session(s)?", "Confirm Bulk Restart");
+        if (confirmed != true) return;
+
+        var restarted = 0;
+        foreach (var session in completedSessions)
+        {
+            var configJson = await SessionRepository.GetConfigJsonAsync(session.Token);
+            if (string.IsNullOrEmpty(configJson)) continue;
+
+            var config = JsonSerializer.Deserialize<AmassConfig>(configJson);
+            if (config == null) continue;
+
+            var result = await EnumerationService.StartEnumerationAsync(config);
+            if (result.Success) restarted++;
+        }
+
+        NotificationService.Notify(NotificationSeverity.Success, $"Restarted {restarted} of {completedSessions.Count} session(s)");
+        _selectedSessions = new List<SessionViewModel>();
+        await LoadSessions();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleSelection(SessionViewModel session, bool selected)
+    {
+        var list = _selectedSessions.ToList();
+        if (selected && !list.Contains(session))
+            list.Add(session);
+        else if (!selected)
+            list.Remove(session);
+        _selectedSessions = list;
+    }
+
+    private static string ShortToken(string token) => token.Length > 8 ? token[..8] + "..." : token;
+
+    private string SessionPath(SessionViewModel session) =>
+        $"engine/{Uri.EscapeDataString(session.EnginePodName)}/session/{session.Token}";
+
+    private static string FormatDomains(string? domainsJson)
+    {
+        if (string.IsNullOrEmpty(domainsJson)) return "-";
+        try
+        {
+            var domains = JsonSerializer.Deserialize<List<string>>(domainsJson);
+            return domains != null ? string.Join(", ", domains) : "-";
+        }
+        catch
+        {
+            return domainsJson;
+        }
+    }
+
+    private static string FormatRelativeTime(DateTime utcTime)
+    {
+        var diff = DateTime.UtcNow - utcTime;
+        if (diff.TotalMinutes < 1) return "just now";
+        if (diff.TotalHours < 1) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalDays < 1) return $"{(int)diff.TotalHours}h ago";
+        return $"{(int)diff.TotalDays}d ago";
+    }
+
+    public void Dispose()
+    {
+        StateStore.OnStateChanged -= HandleStateChanged;
+    }
+}
