@@ -79,3 +79,8 @@ TestResults/
 coverage/
 *.coverage
 *.coveragexml
+
+# Exclude SQLite database files
+*.db
+*.db-shm
+*.db-wal

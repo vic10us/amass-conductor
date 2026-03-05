@@ -11,19 +11,22 @@ public class EngineMonitorService : BackgroundService
     private readonly EngineStateStore _stateStore;
     private readonly IOptionsMonitor<OrchestratorOptions> _options;
     private readonly ILogger<EngineMonitorService> _logger;
+    private readonly ISessionRepository _sessionRepository;
 
     public EngineMonitorService(
         IKubernetesDiscoveryService discovery,
         IAmassEngineClient engineClient,
         EngineStateStore stateStore,
         IOptionsMonitor<OrchestratorOptions> options,
-        ILogger<EngineMonitorService> logger)
+        ILogger<EngineMonitorService> logger,
+        ISessionRepository sessionRepository)
     {
         _discovery = discovery;
         _engineClient = engineClient;
         _stateStore = stateStore;
         _options = options;
         _logger = logger;
+        _sessionRepository = sessionRepository;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -101,12 +104,23 @@ public class EngineMonitorService : BackgroundService
                         }
                     }
 
-                    sessions.Add(new SessionInfo(
+                    var sessionInfo = new SessionInfo(
                         sessionToken,
                         completed,
                         total,
                         isCompleted,
-                        consecutivePolls));
+                        consecutivePolls);
+
+                    sessions.Add(sessionInfo);
+
+                    try
+                    {
+                        await _sessionRepository.UpsertAsync(pod.PodName, sessionInfo);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to persist session {Token} to database", sessionToken);
+                    }
                 }
             }
 

@@ -1,7 +1,9 @@
 using AmassOrchestrator.Web.Components;
 using AmassOrchestrator.Web.Configuration;
+using AmassOrchestrator.Web.Data;
 using AmassOrchestrator.Web.Services;
 using k8s;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Radzen;
 using Serilog;
@@ -49,6 +51,16 @@ builder.Services.AddSingleton<IAmassEngineClient, AmassEngineClient>();
 builder.Services.AddSingleton<EngineStateStore>();
 builder.Services.AddSingleton<IEnumerationService, EnumerationService>();
 
+// SQLite database
+var dbPath = orchestratorConfig.DatabasePath;
+var dbDir = Path.GetDirectoryName(dbPath);
+if (!string.IsNullOrEmpty(dbDir))
+    Directory.CreateDirectory(dbDir);
+
+builder.Services.AddDbContextFactory<OrchestratorDbContext>(options =>
+    options.UseSqlite($"Data Source={dbPath}"));
+builder.Services.AddSingleton<ISessionRepository, SessionRepository>();
+
 builder.Services.AddSingleton<DefaultsLoaderService>();
 
 builder.Services.AddHttpClient(AmassEngineClient.HttpClientName)
@@ -61,7 +73,18 @@ builder.Services.AddHttpClient(AmassEngineClient.HttpClientName)
 
 builder.Services.AddHostedService<EngineMonitorService>();
 
+builder.Services.AddSingleton<LogAggregatorService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<LogAggregatorService>());
+
 var app = builder.Build();
+
+// Ensure database is created
+using (var scope = app.Services.CreateScope())
+{
+    var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<OrchestratorDbContext>>();
+    await using var db = await dbFactory.CreateDbContextAsync();
+    await db.Database.EnsureCreatedAsync();
+}
 
 if (!app.Environment.IsDevelopment())
 {

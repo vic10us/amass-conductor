@@ -1,0 +1,101 @@
+@page "/logs"
+@implements IDisposable
+@inject LogAggregatorService LogAggregator
+@inject EngineStateStore StateStore
+
+<PageTitle>Live Logs - Amass Orchestrator</PageTitle>
+
+<RadzenText TextStyle="TextStyle.H4" class="rz-mb-4">Live Logs</RadzenText>
+
+<RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" class="rz-mb-4" AlignItems="AlignItems.End">
+    <RadzenFormField Text="Engine">
+        <RadzenDropDown TValue="string" Data="@_engineOptions" @bind-Value="@_engineFilter" AllowClear="true" Placeholder="All engines" Style="width: 200px;" />
+    </RadzenFormField>
+    <RadzenFormField Text="Session">
+        <RadzenDropDown TValue="string" Data="@_sessionOptions" @bind-Value="@_sessionFilter" AllowClear="true" Placeholder="All sessions" Style="width: 200px;" />
+    </RadzenFormField>
+    <RadzenFormField Text="Search">
+        <RadzenTextBox @bind-Value="@_textSearch" Placeholder="Filter logs..." Style="width: 200px;" />
+    </RadzenFormField>
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+        <RadzenCheckBox TValue="bool" @bind-Value="@_autoScroll" />
+        <RadzenLabel Text="Auto-scroll" />
+    </RadzenStack>
+</RadzenStack>
+
+<pre style="max-height: 600px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem; font-family: 'Cascadia Code', 'Fira Code', monospace;">@string.Join("\n", GetFilteredLines())</pre>
+
+@code {
+    private const int MaxEntries = 1000;
+    private readonly LinkedList<AggregatedLogEntry> _entries = new();
+    private bool _autoScroll = true;
+    private string? _engineFilter;
+    private string? _sessionFilter;
+    private string? _textSearch;
+    private List<string> _engineOptions = [];
+    private List<string> _sessionOptions = [];
+
+    protected override void OnInitialized()
+    {
+        LogAggregator.OnLogReceived += HandleLogReceived;
+        StateStore.OnStateChanged += RefreshOptions;
+        RefreshOptions();
+    }
+
+    private void RefreshOptions()
+    {
+        _engineOptions = StateStore.States.Keys.OrderBy(k => k).ToList();
+        var sessions = new List<string>();
+        foreach (var state in StateStore.States.Values)
+        {
+            foreach (var session in state.Sessions)
+            {
+                sessions.Add(session.Token);
+            }
+        }
+        _sessionOptions = sessions.Distinct().OrderBy(s => s).ToList();
+    }
+
+    private async void HandleLogReceived(AggregatedLogEntry entry)
+    {
+        lock (_entries)
+        {
+            _entries.AddLast(entry);
+            while (_entries.Count > MaxEntries) _entries.RemoveFirst();
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private IEnumerable<string> GetFilteredLines()
+    {
+        List<AggregatedLogEntry> snapshot;
+        lock (_entries)
+        {
+            snapshot = _entries.ToList();
+        }
+
+        foreach (var entry in snapshot)
+        {
+            if (!string.IsNullOrEmpty(_engineFilter) && entry.EnginePodName != _engineFilter)
+                continue;
+            if (!string.IsNullOrEmpty(_sessionFilter) && entry.SessionToken != _sessionFilter)
+                continue;
+
+            var formatted = $"[{entry.EnginePodName}/{ShortToken(entry.SessionToken)}] {entry.Message}";
+
+            if (!string.IsNullOrEmpty(_textSearch) && !formatted.Contains(_textSearch, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            yield return formatted;
+        }
+    }
+
+    private static string ShortToken(string token) => token.Length > 8 ? token[..8] : token;
+
+    public void Dispose()
+    {
+        LogAggregator.OnLogReceived -= HandleLogReceived;
+        StateStore.OnStateChanged -= RefreshOptions;
+    }
+}

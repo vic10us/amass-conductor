@@ -47,7 +47,7 @@ public class EngineMonitorServiceTests
 
         var service = new EngineMonitorService(
             discoveryMock.Object, clientMock.Object, stateStore,
-            DefaultOptions(), NullLogger<EngineMonitorService>.Instance);
+            DefaultOptions(), NullLogger<EngineMonitorService>.Instance, Mock.Of<ISessionRepository>());
 
         await service.PollAsync(CancellationToken.None);
 
@@ -91,7 +91,7 @@ public class EngineMonitorServiceTests
 
         var service = new EngineMonitorService(
             discoveryMock.Object, clientMock.Object, stateStore,
-            DefaultOptions(), NullLogger<EngineMonitorService>.Instance);
+            DefaultOptions(), NullLogger<EngineMonitorService>.Instance, Mock.Of<ISessionRepository>());
 
         await service.PollAsync(CancellationToken.None);
 
@@ -122,7 +122,7 @@ public class EngineMonitorServiceTests
         var stateStore = new EngineStateStore();
         var service = new EngineMonitorService(
             discoveryMock.Object, clientMock.Object, stateStore,
-            DefaultOptions(), NullLogger<EngineMonitorService>.Instance);
+            DefaultOptions(), NullLogger<EngineMonitorService>.Instance, Mock.Of<ISessionRepository>());
 
         // Poll 5 times — should become completed on the 5th
         for (var i = 0; i < 5; i++)
@@ -162,7 +162,7 @@ public class EngineMonitorServiceTests
         var stateStore = new EngineStateStore();
         var service = new EngineMonitorService(
             discoveryMock.Object, clientMock.Object, stateStore,
-            DefaultOptions(), NullLogger<EngineMonitorService>.Instance);
+            DefaultOptions(), NullLogger<EngineMonitorService>.Instance, Mock.Of<ISessionRepository>());
 
         // 3 polls with completed == total
         clientMock.Setup(c => c.GetSessionStatsAsync("10.0.0.1", 8080, "token-1", It.IsAny<CancellationToken>()))
@@ -208,7 +208,7 @@ public class EngineMonitorServiceTests
 
         var service = new EngineMonitorService(
             discoveryMock.Object, clientMock.Object, stateStore,
-            DefaultOptions(), NullLogger<EngineMonitorService>.Instance);
+            DefaultOptions(), NullLogger<EngineMonitorService>.Instance, Mock.Of<ISessionRepository>());
 
         await service.PollAsync(CancellationToken.None);
 

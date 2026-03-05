@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AmassOrchestrator.Web.Configuration;
 using AmassOrchestrator.Web.Models;
 using AmassOrchestrator.Web.Models.Kubernetes;
@@ -9,22 +10,28 @@ public class EnumerationService(
     EngineStateStore stateStore,
     IAmassEngineClient engineClient,
     IOptions<OrchestratorOptions> options,
-    ILogger<EnumerationService> logger) : IEnumerationService
+    ILogger<EnumerationService> logger,
+    ISessionRepository sessionRepository) : IEnumerationService
 {
     public async Task<EnumerationResult> StartEnumerationAsync(AmassConfig config)
     {
-        var freeEngine = stateStore.States.Values
-            .Where(s => s.IsHealthy && s.Pod.IsReady && s.Sessions.Count == 0)
-            .OrderBy(s => s.Pod.Ordinal)
+        var maxActive = options.Value.MaxActiveSessionsPerEngine;
+
+        var candidate = stateStore.States.Values
+            .Where(s => s.IsHealthy && s.Pod.IsReady)
+            .Where(s => s.Sessions.Count(sess => !sess.IsCompleted) < maxActive)
+            .OrderBy(s => s.Sessions.Count(sess => !sess.IsCompleted))
+            .ThenBy(s => s.Sessions.Count)
+            .ThenBy(s => s.Pod.Ordinal)
             .FirstOrDefault();
 
-        if (freeEngine is null)
+        if (candidate is null)
         {
             logger.LogWarning("No free engine available for enumeration");
             return EnumerationResult.Fail("No free engine available. All engines are busy or unhealthy.");
         }
 
-        return await RunEnumerationAsync(freeEngine, config);
+        return await RunEnumerationAsync(candidate, config);
     }
 
     public async Task<EnumerationResult> StartEnumerationOnEngineAsync(string podName, AmassConfig config)
@@ -77,6 +84,16 @@ public class EnumerationService(
 
         logger.LogInformation("Enumeration started on {PodName} with session {Token} for domains: {Domains}",
             podName, sessionToken, string.Join(", ", domains));
+
+        try
+        {
+            var configJson = JsonSerializer.Serialize(config);
+            await sessionRepository.CreateAsync(podName, sessionToken, domains, configJson);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to persist new session {Token} to database", sessionToken);
+        }
 
         return EnumerationResult.Ok(sessionToken, podName);
     }
