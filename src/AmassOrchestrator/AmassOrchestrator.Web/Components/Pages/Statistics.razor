@@ -1,0 +1,233 @@
+@page "/statistics"
+@inject ISessionRepository SessionRepository
+
+<PageTitle>Statistics - Amass Orchestrator</PageTitle>
+
+<RadzenText TextStyle="TextStyle.H4" class="rz-mb-4">Statistics</RadzenText>
+
+@if (_loading)
+{
+    <RadzenProgressBarCircular ShowValue="true" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Large" />
+}
+else if (_stats == null || _stats.TotalSessions == 0)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Info" Variant="Variant.Flat" Shade="Shade.Lighter">
+        No session data available yet. Create some enumeration sessions to see statistics.
+    </RadzenAlert>
+}
+else
+{
+    <RadzenRow Gap="1rem" class="rz-mb-4">
+        <RadzenColumn Size="3">
+            <RadzenCard class="rz-text-align-center">
+                <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@_stats.TotalSessions</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Total Sessions</RadzenText>
+            </RadzenCard>
+        </RadzenColumn>
+        <RadzenColumn Size="3">
+            <RadzenCard class="rz-text-align-center">
+                <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0" Style="color: var(--rz-success);">@_stats.CompletedSessions</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Completed</RadzenText>
+            </RadzenCard>
+        </RadzenColumn>
+        <RadzenColumn Size="3">
+            <RadzenCard class="rz-text-align-center">
+                <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0" Style="color: var(--rz-danger);">@_stats.FailedSessions</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Failed</RadzenText>
+            </RadzenCard>
+        </RadzenColumn>
+        <RadzenColumn Size="3">
+            <RadzenCard class="rz-text-align-center">
+                <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0" Style="color: var(--rz-info);">@_stats.ActiveSessions</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Active</RadzenText>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+
+    <RadzenRow Gap="1rem" class="rz-mb-4">
+        <RadzenColumn Size="3">
+            <RadzenCard class="rz-text-align-center">
+                <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@_stats.TotalWorkItemsProcessed</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Work Items Processed</RadzenText>
+            </RadzenCard>
+        </RadzenColumn>
+        <RadzenColumn Size="3">
+            <RadzenCard class="rz-text-align-center">
+                <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@(_stats.SuccessRate.ToString("F1"))%</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Success Rate</RadzenText>
+            </RadzenCard>
+        </RadzenColumn>
+        <RadzenColumn Size="3">
+            <RadzenCard class="rz-text-align-center">
+                <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@(_stats.AverageDurationMinutes.ToString("F1"))m</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Avg Duration</RadzenText>
+            </RadzenCard>
+        </RadzenColumn>
+        <RadzenColumn Size="3">
+            <RadzenCard class="rz-text-align-center">
+                <RadzenText TextStyle="TextStyle.Body1" class="rz-mb-0">@(_stats.MinDurationMinutes.ToString("F1"))m / @(_stats.MaxDurationMinutes.ToString("F1"))m</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Min / Max Duration</RadzenText>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+
+    <RadzenRow Gap="1rem" class="rz-mb-4">
+        <RadzenColumn Size="8">
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Sessions Over Time (Last 30 Days)</RadzenText>
+                <RadzenChart Style="height: 300px;">
+                    <RadzenColumnSeries Data="@_stats.SessionsOverTime" CategoryProperty="Date" ValueProperty="Count" Title="Sessions" />
+                    <RadzenCategoryAxis />
+                    <RadzenValueAxis />
+                </RadzenChart>
+            </RadzenCard>
+        </RadzenColumn>
+        <RadzenColumn Size="4">
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Success vs Failure</RadzenText>
+                <RadzenChart Style="height: 300px;">
+                    <RadzenPieSeries Data="@_stats.StatusDistribution" CategoryProperty="Status" ValueProperty="Count" Title="Status" />
+                </RadzenChart>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+
+    @if (_stats.DurationPerSession.Any())
+    {
+        <RadzenCard class="rz-mb-4">
+            <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Enumeration Duration (Last 20 Completed)</RadzenText>
+            <RadzenChart Style="height: 300px;">
+                <RadzenBarSeries Data="@_stats.DurationPerSession" CategoryProperty="Token" ValueProperty="DurationMinutes" Title="Minutes" />
+                <RadzenCategoryAxis />
+                <RadzenValueAxis>
+                    <RadzenGridLines Visible="true" />
+                </RadzenValueAxis>
+            </RadzenChart>
+        </RadzenCard>
+    }
+
+    <RadzenRow Gap="1rem" class="rz-mb-4">
+        <RadzenColumn Size="8">
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Work Items Per Session (Last 20)</RadzenText>
+                <RadzenChart Style="height: 300px;">
+                    <RadzenColumnSeries Data="@_stats.WorkItemsPerSession" CategoryProperty="Token" ValueProperty="WorkItems" Title="Work Items" />
+                    <RadzenCategoryAxis />
+                    <RadzenValueAxis>
+                        <RadzenGridLines Visible="true" />
+                    </RadzenValueAxis>
+                </RadzenChart>
+            </RadzenCard>
+        </RadzenColumn>
+        <RadzenColumn Size="4">
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Sessions Per Engine</RadzenText>
+                <RadzenChart Style="height: 300px;">
+                    <RadzenPieSeries Data="@_stats.EngineDistribution" CategoryProperty="EnginePodName" ValueProperty="SessionCount" Title="Engine" />
+                </RadzenChart>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+}
+
+@code {
+    private bool _loading = true;
+    private StatisticsViewModel? _stats;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var sessions = await SessionRepository.GetAllAsync();
+
+        if (sessions.Count == 0)
+        {
+            _loading = false;
+            return;
+        }
+
+        var completed = sessions.Where(s => s.IsCompleted && !s.IsFailed).ToList();
+        var failed = sessions.Where(s => s.IsFailed).ToList();
+        var active = sessions.Where(s => !s.IsCompleted && !s.IsFailed).ToList();
+
+        var completedWithDuration = completed
+            .Where(s => s.CompletedAtUtc.HasValue)
+            .Select(s => (s.CompletedAtUtc!.Value - s.CreatedAtUtc).TotalMinutes)
+            .Where(d => d >= 0)
+            .ToList();
+
+        _stats = new StatisticsViewModel
+        {
+            TotalSessions = sessions.Count,
+            CompletedSessions = completed.Count,
+            FailedSessions = failed.Count,
+            ActiveSessions = active.Count,
+            TotalWorkItemsProcessed = sessions.Sum(s => s.WorkItemsCompleted),
+            SuccessRate = sessions.Count(s => s.IsCompleted || s.IsFailed) > 0
+                ? 100.0 * completed.Count / sessions.Count(s => s.IsCompleted || s.IsFailed)
+                : 0,
+            AverageDurationMinutes = completedWithDuration.Count > 0 ? completedWithDuration.Average() : 0,
+            MinDurationMinutes = completedWithDuration.Count > 0 ? completedWithDuration.Min() : 0,
+            MaxDurationMinutes = completedWithDuration.Count > 0 ? completedWithDuration.Max() : 0,
+        };
+
+        // Sessions over time (last 30 days)
+        var cutoff = DateTime.UtcNow.Date.AddDays(-29);
+        _stats.SessionsOverTime = Enumerable.Range(0, 30)
+            .Select(i => cutoff.AddDays(i))
+            .Select(date => new SessionsOverTimeEntry
+            {
+                Date = date.ToString("MM/dd"),
+                Count = sessions.Count(s => s.CreatedAtUtc.Date == date)
+            })
+            .ToList();
+
+        // Status distribution
+        _stats.StatusDistribution =
+        [
+            new() { Status = "Completed", Count = completed.Count },
+            new() { Status = "Failed", Count = failed.Count },
+        ];
+        if (active.Count > 0)
+            _stats.StatusDistribution.Add(new() { Status = "Active", Count = active.Count });
+
+        // Duration per session (last 20 completed)
+        _stats.DurationPerSession = completed
+            .Where(s => s.CompletedAtUtc.HasValue)
+            .OrderByDescending(s => s.CreatedAtUtc)
+            .Take(20)
+            .OrderBy(s => s.CreatedAtUtc)
+            .Select(s => new DurationPerSessionEntry
+            {
+                Token = ShortToken(s.Token),
+                DurationMinutes = Math.Round((s.CompletedAtUtc!.Value - s.CreatedAtUtc).TotalMinutes, 1)
+            })
+            .ToList();
+
+        // Work items per session (last 20)
+        _stats.WorkItemsPerSession = sessions
+            .OrderByDescending(s => s.CreatedAtUtc)
+            .Take(20)
+            .OrderBy(s => s.CreatedAtUtc)
+            .Select(s => new WorkItemsPerSessionEntry
+            {
+                Token = ShortToken(s.Token),
+                WorkItems = s.WorkItemsCompleted
+            })
+            .ToList();
+
+        // Engine distribution
+        _stats.EngineDistribution = sessions
+            .Where(s => !string.IsNullOrEmpty(s.EnginePodName))
+            .GroupBy(s => s.EnginePodName)
+            .Select(g => new EngineDistributionEntry
+            {
+                EnginePodName = g.Key,
+                SessionCount = g.Count()
+            })
+            .OrderByDescending(e => e.SessionCount)
+            .ToList();
+
+        _loading = false;
+    }
+
+    private static string ShortToken(string token) => token.Length > 8 ? token[..8] + "..." : token;
+}
