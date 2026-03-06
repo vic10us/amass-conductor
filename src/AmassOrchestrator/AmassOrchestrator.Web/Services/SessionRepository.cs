@@ -152,4 +152,23 @@ public class SessionRepository : ISessionRepository
         db.Logs.RemoveRange(logs);
         await db.SaveChangesAsync();
     }
+
+    public async Task CreateFailedAsync(IEnumerable<string> domains, string configJson, string errorMessage)
+    {
+        await using var db = await _contextFactory.CreateDbContextAsync();
+        var token = $"failed-{Guid.NewGuid():N}";
+        db.Sessions.Add(new SessionRecord
+        {
+            Token = token,
+            EnginePodName = string.Empty,
+            IsFailed = true,
+            ErrorMessage = errorMessage,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow,
+            Domains = JsonSerializer.Serialize(domains),
+            ConfigJson = configJson
+        });
+        await db.SaveChangesAsync();
+        _logger.LogDebug("Created failed session record {Token}: {Error}", token, errorMessage);
+    }
 }

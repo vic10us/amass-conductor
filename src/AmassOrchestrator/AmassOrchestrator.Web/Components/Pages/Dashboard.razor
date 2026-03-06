@@ -2,8 +2,10 @@
 @implements IDisposable
 @inject EngineStateStore StateStore
 @inject IEnumerationService EnumerationService
+@inject ISessionRepository SessionRepository
 @inject DialogService DialogService
 @inject NotificationService NotificationService
+@using System.Text.Json
 
 <PageTitle>Dashboard - Amass Orchestrator</PageTitle>
 
@@ -50,9 +52,12 @@ else
         var result = await DialogService.OpenAsync<CreateSessionDialog>("New Enumeration",
             options: new DialogOptions { Width = "80%" });
 
-        if (result is AmassConfig config)
+        if (result is CreateSessionDialogResult dialogResult)
         {
-            var enumResult = await EnumerationService.StartEnumerationAsync(config);
+            var config = dialogResult.Config;
+            var enumResult = dialogResult.UseSameEngine && !string.IsNullOrEmpty(dialogResult.TargetEnginePodName)
+                ? await EnumerationService.StartEnumerationOnEngineAsync(dialogResult.TargetEnginePodName, config)
+                : await EnumerationService.StartEnumerationAsync(config);
 
             if (enumResult.Success)
             {
@@ -61,7 +66,10 @@ else
             }
             else
             {
-                NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", enumResult.ErrorMessage ?? "Unknown error");
+                var errorMessage = enumResult.ErrorMessage ?? "Unknown error";
+                NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", errorMessage);
+                var configJson = JsonSerializer.Serialize(config);
+                await SessionRepository.CreateFailedAsync(config.Scope?.Domains ?? [], configJson, errorMessage);
             }
         }
     }

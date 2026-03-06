@@ -13,4 +13,6 @@ public class SessionViewModel
     public DateTime? CompletedAtUtc { get; set; }
     public string? Domains { get; set; }
     public string? PodIp { get; set; }
+    public bool IsFailed { get; set; }
+    public string? ErrorMessage { get; set; }
 }

@@ -80,6 +80,10 @@ using (var scope = app.Services.CreateScope())
     var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<OrchestratorDbContext>>();
     await using var db = await dbFactory.CreateDbContextAsync();
     await db.Database.EnsureCreatedAsync();
+
+    // Safe schema migration for existing databases
+    try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Sessions ADD COLUMN IsFailed INTEGER NOT NULL DEFAULT 0"); } catch { /* column already exists */ }
+    try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Sessions ADD COLUMN ErrorMessage TEXT"); } catch { /* column already exists */ }
 }
 
 if (!app.Environment.IsDevelopment())

@@ -11,11 +11,24 @@ public static class DatasourceConfigParser
         .IgnoreUnmatchedProperties()
         .Build();
 
+    private static readonly ISerializer Serializer = new SerializerBuilder()
+        .WithNamingConvention(UnderscoredNamingConvention.Instance)
+        .ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull)
+        .Build();
+
     public static DataSourceConfig? Parse(string? yaml)
     {
         if (string.IsNullOrWhiteSpace(yaml))
             return null;
 
         return Deserializer.Deserialize<DataSourceConfig>(yaml);
+    }
+
+    public static string? Serialize(DataSourceConfig? config)
+    {
+        if (config is null)
+            return null;
+
+        return Serializer.Serialize(config);
     }
 }
