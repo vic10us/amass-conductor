@@ -68,7 +68,11 @@
         </RadzenDataGridColumn>
         <RadzenDataGridColumn TItem="SessionViewModel" Property="IsCompleted" Title="Status" Width="120px">
             <Template Context="session">
-                @if (session.IsCompleted)
+                @if (session.IsFailed)
+                {
+                    <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="Failed" title="@session.ErrorMessage" />
+                }
+                else if (session.IsCompleted)
                 {
                     <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Completed" />
                 }
@@ -87,17 +91,26 @@
                 @FormatRelativeTime(session.CreatedAtUtc)
             </Template>
         </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="SessionViewModel" Title="Actions" Width="100px" Sortable="false">
+        <RadzenDataGridColumn TItem="SessionViewModel" Title="Actions" Width="130px" Sortable="false">
             <Template Context="session">
-                @if (session.IsLive && !session.IsCompleted)
+                @if (session.IsFailed)
+                {
+                    <RadzenButton Icon="replay" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.ExtraSmall"
+                                  Variant="Variant.Text" Click="@(() => RestartSession(session))" title="Retry" />
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.ExtraSmall"
+                                  Variant="Variant.Text" Click="@(() => DeleteSession(session))" title="Delete" />
+                }
+                else if (session.IsLive && !session.IsCompleted)
                 {
                     <RadzenButton Icon="stop" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.ExtraSmall"
                                   Variant="Variant.Text" Click="@(() => StopSession(session))" />
                 }
-                @if (session.IsCompleted)
+                else if (session.IsCompleted)
                 {
+                    <RadzenButton Icon="replay" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.ExtraSmall"
+                                  Variant="Variant.Text" Click="@(() => RestartSession(session))" title="Restart" />
                     <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.ExtraSmall"
-                                  Variant="Variant.Text" Click="@(() => DeleteSession(session))" />
+                                  Variant="Variant.Text" Click="@(() => DeleteSession(session))" title="Delete" />
                 }
             </Template>
         </RadzenDataGridColumn>
@@ -114,7 +127,7 @@
     private string? _engineFilter;
     private string? _domainSearch;
 
-    private static readonly string[] _statusOptions = ["All", "Active", "Completed"];
+    private static readonly string[] _statusOptions = ["All", "Active", "Completed", "Failed"];
     private List<string> _engineOptions = [];
 
     protected override async Task OnInitializedAsync()
@@ -151,7 +164,9 @@
                 IsCompleted = rec.IsCompleted,
                 CreatedAtUtc = rec.CreatedAtUtc,
                 CompletedAtUtc = rec.CompletedAtUtc,
-                Domains = rec.Domains
+                Domains = rec.Domains,
+                IsFailed = rec.IsFailed,
+                ErrorMessage = rec.ErrorMessage
             };
         }
 
@@ -192,9 +207,11 @@
         var filtered = _allSessions.AsEnumerable();
 
         if (_statusFilter == "Active")
-            filtered = filtered.Where(s => !s.IsCompleted);
+            filtered = filtered.Where(s => !s.IsCompleted && !s.IsFailed);
         else if (_statusFilter == "Completed")
             filtered = filtered.Where(s => s.IsCompleted);
+        else if (_statusFilter == "Failed")
+            filtered = filtered.Where(s => s.IsFailed);
 
         if (!string.IsNullOrEmpty(_engineFilter))
             filtered = filtered.Where(s => s.EnginePodName == _engineFilter);
@@ -216,19 +233,84 @@
         var result = await DialogService.OpenAsync<CreateSessionDialog>("New Enumeration",
             options: new DialogOptions { Width = "80%" });
 
-        if (result is AmassConfig config)
+        if (result is CreateSessionDialogResult dialogResult)
         {
-            var enumResult = await EnumerationService.StartEnumerationAsync(config);
+            var config = dialogResult.Config;
+            var enumResult = dialogResult.UseSameEngine && !string.IsNullOrEmpty(dialogResult.TargetEnginePodName)
+                ? await EnumerationService.StartEnumerationOnEngineAsync(dialogResult.TargetEnginePodName, config)
+                : await EnumerationService.StartEnumerationAsync(config);
+
             if (enumResult.Success)
             {
                 NotificationService.Notify(NotificationSeverity.Success, "Enumeration started",
                     $"Session {enumResult.SessionToken} on {enumResult.EnginePodName}");
-                await LoadSessions();
             }
             else
             {
-                NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", enumResult.ErrorMessage ?? "Unknown error");
+                var errorMessage = enumResult.ErrorMessage ?? "Unknown error";
+                NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", errorMessage);
+                var configJson = JsonSerializer.Serialize(config);
+                await SessionRepository.CreateFailedAsync(config.Scope?.Domains ?? [], configJson, errorMessage);
             }
+            await LoadSessions();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task RestartSession(SessionViewModel session)
+    {
+        var configJson = await SessionRepository.GetConfigJsonAsync(session.Token);
+        if (string.IsNullOrEmpty(configJson))
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "No saved config", "Cannot restart — configuration not found.");
+            return;
+        }
+
+        var config = JsonSerializer.Deserialize<AmassConfig>(configJson);
+        if (config == null)
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Invalid config", "Cannot restart — configuration could not be parsed.");
+            return;
+        }
+
+        var parameters = new Dictionary<string, object?>
+        {
+            { nameof(CreateSessionDialog.InitialConfig), config },
+            { nameof(CreateSessionDialog.ShowEngineChoice), !string.IsNullOrEmpty(session.EnginePodName) },
+            { nameof(CreateSessionDialog.OriginalEnginePodName), session.EnginePodName ?? string.Empty }
+        };
+
+        var result = await DialogService.OpenAsync<CreateSessionDialog>(
+            session.IsFailed ? "Retry Enumeration" : "Restart Enumeration",
+            parameters,
+            new DialogOptions { Width = "80%" });
+
+        if (result is CreateSessionDialogResult dialogResult)
+        {
+            var newConfig = dialogResult.Config;
+            var enumResult = dialogResult.UseSameEngine && !string.IsNullOrEmpty(dialogResult.TargetEnginePodName)
+                ? await EnumerationService.StartEnumerationOnEngineAsync(dialogResult.TargetEnginePodName, newConfig)
+                : await EnumerationService.StartEnumerationAsync(newConfig);
+
+            if (enumResult.Success)
+            {
+                if (session.IsFailed)
+                {
+                    await SessionRepository.DeleteAsync(session.Token);
+                    await SessionRepository.DeleteLogsAsync(session.Token);
+                }
+                NotificationService.Notify(NotificationSeverity.Success, "Enumeration started",
+                    $"Session {enumResult.SessionToken} on {enumResult.EnginePodName}");
+            }
+            else
+            {
+                var errorMessage = enumResult.ErrorMessage ?? "Unknown error";
+                NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", errorMessage);
+                var newConfigJson = JsonSerializer.Serialize(newConfig);
+                await SessionRepository.CreateFailedAsync(newConfig.Scope?.Domains ?? [], newConfigJson, errorMessage);
+            }
+            await LoadSessions();
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -279,23 +361,23 @@
 
     private async Task DeleteSelected()
     {
-        var completedSessions = _selectedSessions.Where(s => s.IsCompleted).ToList();
-        if (!completedSessions.Any())
+        var deletableSessions = _selectedSessions.Where(s => s.IsCompleted || s.IsFailed).ToList();
+        if (!deletableSessions.Any())
         {
-            NotificationService.Notify(NotificationSeverity.Warning, "No completed sessions selected for deletion");
+            NotificationService.Notify(NotificationSeverity.Warning, "No completed or failed sessions selected for deletion");
             return;
         }
 
-        var confirmed = await DialogService.Confirm($"Delete {completedSessions.Count} session record(s)?", "Confirm Bulk Delete");
+        var confirmed = await DialogService.Confirm($"Delete {deletableSessions.Count} session record(s)?", "Confirm Bulk Delete");
         if (confirmed != true) return;
 
-        foreach (var session in completedSessions)
+        foreach (var session in deletableSessions)
         {
             await SessionRepository.DeleteAsync(session.Token);
             await SessionRepository.DeleteLogsAsync(session.Token);
         }
 
-        NotificationService.Notify(NotificationSeverity.Success, $"Deleted {completedSessions.Count} session(s)");
+        NotificationService.Notify(NotificationSeverity.Success, $"Deleted {deletableSessions.Count} session(s)");
         _selectedSessions = new List<SessionViewModel>();
         await LoadSessions();
         await InvokeAsync(StateHasChanged);
@@ -323,7 +405,17 @@
             if (config == null) continue;
 
             var result = await EnumerationService.StartEnumerationAsync(config);
-            if (result.Success) restarted++;
+            if (result.Success)
+            {
+                restarted++;
+            }
+            else
+            {
+                await SessionRepository.CreateFailedAsync(
+                    config.Scope?.Domains ?? [],
+                    configJson,
+                    result.ErrorMessage ?? "Unknown error");
+            }
         }
 
         NotificationService.Notify(NotificationSeverity.Success, $"Restarted {restarted} of {completedSessions.Count} session(s)");

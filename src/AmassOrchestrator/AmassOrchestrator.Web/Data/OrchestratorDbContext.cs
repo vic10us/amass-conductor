@@ -15,6 +15,7 @@ public class OrchestratorDbContext : DbContext
         {
             entity.HasIndex(e => e.Token).IsUnique();
             entity.HasIndex(e => e.IsCompleted);
+            entity.HasIndex(e => e.IsFailed);
         });
 
         modelBuilder.Entity<LogRecord>(entity =>

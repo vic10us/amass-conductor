@@ -2,11 +2,13 @@
 @implements IDisposable
 @inject EngineStateStore StateStore
 @inject IEnumerationService EnumerationService
+@inject ISessionRepository SessionRepository
 @inject NavigationManager Navigation
 @inject DialogService DialogService
 @inject NotificationService NotificationService
 @inject IOptions<AmassOrchestrator.Web.Configuration.OrchestratorOptions> Options
 @using Microsoft.Extensions.Options
+@using System.Text.Json
 
 <PageTitle>@PodName - Amass Orchestrator</PageTitle>
 
@@ -91,8 +93,9 @@ else
         var result = await DialogService.OpenAsync<CreateSessionDialog>("Create Session",
             options: new DialogOptions { Width = "750px" });
 
-        if (result is AmassConfig config)
+        if (result is CreateSessionDialogResult dialogResult)
         {
+            var config = dialogResult.Config;
             var enumResult = await EnumerationService.StartEnumerationOnEngineAsync(
                 Uri.UnescapeDataString(PodName), config);
 
@@ -103,7 +106,10 @@ else
             }
             else
             {
-                NotificationService.Notify(NotificationSeverity.Error, "Failed to create session", enumResult.ErrorMessage ?? "Unknown error");
+                var errorMessage = enumResult.ErrorMessage ?? "Unknown error";
+                NotificationService.Notify(NotificationSeverity.Error, "Failed to create session", errorMessage);
+                var configJson = JsonSerializer.Serialize(config);
+                await SessionRepository.CreateFailedAsync(config.Scope?.Domains ?? [], configJson, errorMessage);
             }
         }
     }
@@ -113,9 +119,12 @@ else
         var result = await DialogService.OpenAsync<CreateSessionDialog>("New Enumeration (Auto)",
             options: new DialogOptions { Width = "750px" });
 
-        if (result is AmassConfig config)
+        if (result is CreateSessionDialogResult dialogResult)
         {
-            var enumResult = await EnumerationService.StartEnumerationAsync(config);
+            var config = dialogResult.Config;
+            var enumResult = dialogResult.UseSameEngine && !string.IsNullOrEmpty(dialogResult.TargetEnginePodName)
+                ? await EnumerationService.StartEnumerationOnEngineAsync(dialogResult.TargetEnginePodName, config)
+                : await EnumerationService.StartEnumerationAsync(config);
 
             if (enumResult.Success)
             {
@@ -124,7 +133,10 @@ else
             }
             else
             {
-                NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", enumResult.ErrorMessage ?? "Unknown error");
+                var errorMessage = enumResult.ErrorMessage ?? "Unknown error";
+                NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", errorMessage);
+                var configJson = JsonSerializer.Serialize(config);
+                await SessionRepository.CreateFailedAsync(config.Scope?.Domains ?? [], configJson, errorMessage);
             }
         }
     }

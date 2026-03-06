@@ -161,6 +161,19 @@
     </Tabs>
 </RadzenTabs>
 
+@if (ShowEngineChoice && !string.IsNullOrEmpty(OriginalEnginePodName))
+{
+    <RadzenStack Gap="0.5rem" class="rz-mt-2 rz-p-2" Style="border: 1px solid var(--rz-border-color); border-radius: var(--rz-border-radius);">
+        <RadzenText TextStyle="TextStyle.Subtitle2">Engine Selection</RadzenText>
+        <RadzenRadioButtonList @bind-Value="@_useSameEngine" TValue="bool" Orientation="Orientation.Vertical">
+            <Items>
+                <RadzenRadioButtonListItem Text="Auto-select best engine" Value="false" />
+                <RadzenRadioButtonListItem Text="@($"Same engine: {OriginalEnginePodName}")" Value="true" />
+            </Items>
+        </RadzenRadioButtonList>
+    </RadzenStack>
+}
+
 @if (!string.IsNullOrEmpty(_validationError))
 {
     <RadzenAlert AlertStyle="AlertStyle.Danger" Shade="Shade.Lighter" Size="AlertSize.Small" class="rz-mt-2">
@@ -170,10 +183,14 @@
 
 <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem" class="rz-mt-4">
     <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(null))" />
-    <RadzenButton Text="Create" ButtonStyle="ButtonStyle.Primary" Click="@OnCreate" />
+    <RadzenButton Text="@(InitialConfig != null ? "Restart" : "Create")" ButtonStyle="ButtonStyle.Primary" Click="@OnCreate" />
 </RadzenStack>
 
 @code {
+    [Parameter] public AmassConfig? InitialConfig { get; set; }
+    [Parameter] public string? OriginalEnginePodName { get; set; }
+    [Parameter] public bool ShowEngineChoice { get; set; }
+
     private string _domains = string.Empty;
     private bool _active;
     private bool _bruteForce;
@@ -196,6 +213,7 @@
     private string _customTransformationKey = string.Empty;
     private List<TransformationRow> _transformations = [];
     private List<string> _supportedDbSystems = [];
+    private bool _useSameEngine;
 
     protected override void OnInitialized()
     {
@@ -203,6 +221,73 @@
         _alterationsWordlist = DefaultsLoader.GetAlterationsWordlist();
         _transformations = DefaultsLoader.GetDefaultTransformations();
         _supportedDbSystems = OrchestratorOptions.Value.SupportedDatabaseSystems.Distinct().ToList();
+
+        if (InitialConfig != null)
+            PopulateFromConfig(InitialConfig);
+    }
+
+    private void PopulateFromConfig(AmassConfig config)
+    {
+        _domains = config.Scope?.Domains != null ? string.Join("\n", config.Scope.Domains) : string.Empty;
+        _active = config.Active == true;
+        _bruteForce = config.BruteForce == true;
+        _alterations = config.Alterations == true;
+        _rigidBoundaries = config.RigidBoundaries == true;
+
+        if (config.Wordlist is { Count: > 0 })
+            _bruteForceWordlist = string.Join("\n", config.Wordlist);
+        if (config.AltWorldlist is { Count: > 0 })
+            _alterationsWordlist = string.Join("\n", config.AltWorldlist);
+
+        var db = config.Database?.FirstOrDefault();
+        if (db != null)
+        {
+            _dbSystem = db.System ?? "postgres";
+            _dbPrimary = db.Primary ?? true;
+            _databaseUrl = db.Url ?? string.Empty;
+            _dbHost = db.Host ?? string.Empty;
+            _dbPort = db.Port ?? string.Empty;
+            _dbName = db.DbName ?? string.Empty;
+            _dbUsername = db.Username ?? string.Empty;
+            _dbPassword = db.Password ?? string.Empty;
+            _dbOptions = db.Options ?? string.Empty;
+        }
+
+        _datasourcesYaml = DatasourceConfigParser.Serialize(config.DatasourceConfig) ?? string.Empty;
+
+        if (config.Transformations is { Count: > 0 })
+        {
+            foreach (var row in _transformations)
+            {
+                if (config.Transformations.TryGetValue(row.Key, out var t))
+                {
+                    row.Enabled = true;
+                    row.Priority = t.Priority ?? row.Priority;
+                    row.Confidence = t.Confidence ?? row.Confidence;
+                    row.Ttl = t.Ttl ?? row.Ttl;
+                }
+                else
+                {
+                    row.Enabled = false;
+                }
+            }
+
+            // Add any custom transformations not in defaults
+            foreach (var kvp in config.Transformations)
+            {
+                if (!_transformations.Any(t => t.Key == kvp.Key))
+                {
+                    _transformations.Add(new TransformationRow
+                    {
+                        Enabled = true,
+                        Key = kvp.Key,
+                        Priority = kvp.Value.Priority ?? 5,
+                        Confidence = kvp.Value.Confidence ?? 50,
+                        Ttl = kvp.Value.Ttl ?? 1440
+                    });
+                }
+            }
+        }
     }
 
     private void OnAddCustomTransformation()
@@ -284,7 +369,13 @@
                 : null
         };
 
-        DialogService.Close(config);
+        var dialogResult = new CreateSessionDialogResult
+        {
+            Config = config,
+            UseSameEngine = _useSameEngine && !string.IsNullOrEmpty(OriginalEnginePodName),
+            TargetEnginePodName = _useSameEngine ? OriginalEnginePodName : null
+        };
+        DialogService.Close(dialogResult);
     }
 
     private void OnDatabaseUrlChanged(string value)

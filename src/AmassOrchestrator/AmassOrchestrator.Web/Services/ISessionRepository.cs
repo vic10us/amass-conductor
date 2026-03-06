@@ -17,4 +17,5 @@ public interface ISessionRepository
     Task<List<LogRecord>> GetRecentLogsAsync(int limit = 100);
     Task<List<LogRecord>> GetFilteredLogsAsync(string? sessionToken = null, string? enginePodName = null, int limit = 500);
     Task DeleteLogsAsync(string sessionToken);
+    Task CreateFailedAsync(IEnumerable<string> domains, string configJson, string errorMessage);
 }
