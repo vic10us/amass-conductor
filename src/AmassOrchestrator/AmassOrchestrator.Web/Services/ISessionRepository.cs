@@ -18,4 +18,6 @@ public interface ISessionRepository
     Task<List<LogRecord>> GetFilteredLogsAsync(string? sessionToken = null, string? enginePodName = null, int limit = 500);
     Task DeleteLogsAsync(string sessionToken);
     Task CreateFailedAsync(IEnumerable<string> domains, string configJson, string errorMessage);
+    Task MarkCancelledAsync(string token);
+    Task MarkFailedAsync(string token, string errorMessage);
 }

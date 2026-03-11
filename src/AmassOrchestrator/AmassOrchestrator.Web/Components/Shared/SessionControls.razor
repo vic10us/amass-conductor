@@ -11,6 +11,7 @@
     [Parameter, EditorRequired] public string SessionToken { get; set; } = string.Empty;
     [Parameter] public EventCallback OnSessionStopped { get; set; }
     [Inject] private IAmassEngineClient EngineClient { get; set; } = default!;
+    [Inject] private ISessionRepository SessionRepository { get; set; } = default!;
 
     private async Task ConfirmStop()
     {
@@ -24,6 +25,7 @@
             var success = await EngineClient.DeleteSessionAsync(PodIp, Port, SessionToken);
             if (success)
             {
+                await SessionRepository.MarkCancelledAsync(SessionToken);
                 NotificationService.Notify(NotificationSeverity.Success, "Session stopped");
                 await OnSessionStopped.InvokeAsync();
             }

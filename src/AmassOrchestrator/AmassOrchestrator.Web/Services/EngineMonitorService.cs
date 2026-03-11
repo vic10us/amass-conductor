@@ -12,6 +12,7 @@ public class EngineMonitorService : BackgroundService
     private readonly IOptionsMonitor<OrchestratorOptions> _options;
     private readonly ILogger<EngineMonitorService> _logger;
     private readonly ISessionRepository _sessionRepository;
+    private bool _hasCompletedInitialPoll;
 
     public EngineMonitorService(
         IKubernetesDiscoveryService discovery,
@@ -159,5 +160,47 @@ public class EngineMonitorService : BackgroundService
         });
 
         _stateStore.RemoveStale(activePodNames);
+
+        if (!_hasCompletedInitialPoll)
+        {
+            _hasCompletedInitialPoll = true;
+        }
+        else
+        {
+            await DetectOrphanedSessionsAsync();
+        }
+    }
+
+    private async Task DetectOrphanedSessionsAsync()
+    {
+        try
+        {
+            var dbSessions = await _sessionRepository.GetAllAsync();
+            var activeSessions = dbSessions.Where(s => !s.IsCompleted && !s.IsFailed && !s.IsCancelled).ToList();
+
+            var liveTokens = new HashSet<string>();
+            foreach (var state in _stateStore.States.Values)
+            {
+                foreach (var session in state.Sessions)
+                {
+                    liveTokens.Add(session.Token);
+                }
+            }
+
+            var staleThreshold = TimeSpan.FromSeconds(_options.CurrentValue.PollIntervalSeconds * 2);
+
+            foreach (var session in activeSessions)
+            {
+                if (!liveTokens.Contains(session.Token) && (DateTime.UtcNow - session.UpdatedAtUtc) > staleThreshold)
+                {
+                    _logger.LogWarning("Orphaned session detected: {Token} (last updated {UpdatedAt})", session.Token, session.UpdatedAtUtc);
+                    await _sessionRepository.MarkFailedAsync(session.Token, "Session lost — no longer running on engine");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during orphan session detection");
+        }
     }
 }

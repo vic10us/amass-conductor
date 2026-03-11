@@ -171,4 +171,31 @@ public class SessionRepository : ISessionRepository
         await db.SaveChangesAsync();
         _logger.LogDebug("Created failed session record {Token}: {Error}", token, errorMessage);
     }
+
+    public async Task MarkCancelledAsync(string token)
+    {
+        await using var db = await _contextFactory.CreateDbContextAsync();
+        var record = await db.Sessions.FirstOrDefaultAsync(s => s.Token == token);
+        if (record != null)
+        {
+            record.IsCancelled = true;
+            record.UpdatedAtUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+            _logger.LogDebug("Marked session {Token} as cancelled", token);
+        }
+    }
+
+    public async Task MarkFailedAsync(string token, string errorMessage)
+    {
+        await using var db = await _contextFactory.CreateDbContextAsync();
+        var record = await db.Sessions.FirstOrDefaultAsync(s => s.Token == token);
+        if (record != null)
+        {
+            record.IsFailed = true;
+            record.ErrorMessage = errorMessage;
+            record.UpdatedAtUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+            _logger.LogDebug("Marked session {Token} as failed: {Error}", token, errorMessage);
+        }
+    }
 }
