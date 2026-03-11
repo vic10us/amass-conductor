@@ -6,24 +6,30 @@
             <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">@State.Pod.PodName</RadzenText>
             <RadzenText TextStyle="TextStyle.Caption">
                 @State.Pod.PodIP - @State.Pod.Phase
-                @if (State.TorCheck is not null)
+                @if (State.AnnotationInfo?.PublicIP is not null)
                 {
-                    if (State.TorCheck.IsError)
-                    {
-                        <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Tor ?" />
-                    }
-                    else if (State.TorCheck.IsTor)
-                    {
-                        <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="@($"Tor {State.TorCheck.PublicIP}")" />
-                    }
-                    else
-                    {
-                        <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="@($"Direct {State.TorCheck.PublicIP}")" />
-                    }
+                    @: | Public: @State.AnnotationInfo.PublicIP
                 }
             </RadzenText>
         </RadzenStack>
-        <HealthBadge IsHealthy="@State.IsHealthy" IsReady="@State.Pod.IsReady" />
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
+            @if (State.AnnotationInfo is not null)
+            {
+                @if (State.AnnotationInfo.CheckStatus == IpCheckStatus.Error)
+                {
+                    <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Tor ?" />
+                }
+                else if (State.AnnotationInfo.IsTor == true)
+                {
+                    <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Tor" />
+                }
+                else if (State.AnnotationInfo.IsTor == false)
+                {
+                    <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="Direct" />
+                }
+            }
+            <HealthBadge IsHealthy="@State.IsHealthy" IsReady="@State.Pod.IsReady" />
+        </RadzenStack>
     </RadzenStack>
     <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2">
         @State.Sessions.Count session(s) active

@@ -28,40 +28,57 @@ else
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" class="rz-mt-4 rz-mb-4">
         <RadzenText TextStyle="TextStyle.H4" class="rz-m-0">@_state.Pod.PodName</RadzenText>
         <HealthBadge IsHealthy="@_state.IsHealthy" IsReady="@_state.Pod.IsReady" />
+        @if (_state.AnnotationInfo is not null)
+        {
+            @if (_state.AnnotationInfo.CheckStatus == IpCheckStatus.Error)
+            {
+                <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Tor ?" />
+            }
+            else if (_state.AnnotationInfo.IsTor == true)
+            {
+                <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Tor" />
+            }
+            else if (_state.AnnotationInfo.IsTor == false)
+            {
+                <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="Direct" />
+            }
+        }
     </RadzenStack>
 
     <RadzenText TextStyle="TextStyle.Body1" class="rz-mb-4">
         IP: @_state.Pod.PodIP | Phase: @_state.Pod.Phase | Ordinal: @_state.Pod.Ordinal
     </RadzenText>
 
-    <RadzenCard class="rz-mb-4">
-        <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-2">Tor Status</RadzenText>
-        @if (_state.TorCheck is null)
-        {
-            <RadzenText TextStyle="TextStyle.Body2">Checking...</RadzenText>
-        }
-        else if (_state.TorCheck.IsError)
-        {
-            <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Check Failed" />
-            @if (_state.TorCheck.ErrorMessage is not null)
+    @if (_state.AnnotationInfo is not null)
+    {
+        <RadzenCard class="rz-mb-4">
+            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-2">Network Info</RadzenText>
+            @if (_state.AnnotationInfo.PublicIP is not null)
             {
-                <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">@_state.TorCheck.ErrorMessage</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2">Public IP: @_state.AnnotationInfo.PublicIP</RadzenText>
             }
-            <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-1">Last checked: @_state.TorCheck.CheckedAtUtc.ToString("u")</RadzenText>
-        }
-        else if (_state.TorCheck.IsTor)
-        {
-            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Connected via Tor" />
-            <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">Public IP: @_state.TorCheck.PublicIP</RadzenText>
-            <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-1">Last checked: @_state.TorCheck.CheckedAtUtc.ToString("u")</RadzenText>
-        }
-        else
-        {
-            <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="NOT on Tor" />
-            <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">Public IP: @_state.TorCheck.PublicIP</RadzenText>
-            <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-1">Last checked: @_state.TorCheck.CheckedAtUtc.ToString("u")</RadzenText>
-        }
-    </RadzenCard>
+            @if (_state.AnnotationInfo.CheckStatus == IpCheckStatus.Error)
+            {
+                <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Check Failed" />
+                @if (_state.AnnotationInfo.CheckError is not null)
+                {
+                    <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">@_state.AnnotationInfo.CheckError</RadzenText>
+                }
+            }
+            @if (_state.AnnotationInfo.IsTor == true)
+            {
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">Connection: Tor</RadzenText>
+            }
+            else if (_state.AnnotationInfo.IsTor == false)
+            {
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">Connection: Direct</RadzenText>
+            }
+            @if (_state.AnnotationInfo.CheckedAtUtc is not null)
+            {
+                <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-1">Last checked: @_state.AnnotationInfo.CheckedAtUtc.Value.ToString("u")</RadzenText>
+            }
+        </RadzenCard>
+    }
 
     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" class="rz-mb-4">
         <RadzenButton Text="Create Session" Icon="add" ButtonStyle="ButtonStyle.Primary" Click="@ShowCreateDialog" />

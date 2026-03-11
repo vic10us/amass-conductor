@@ -314,7 +314,7 @@ public class EngineMonitorServiceTests
     }
 
     [Fact]
-    public async Task PollAsync_ParsesTorAnnotations_IntoTorCheckResult()
+    public async Task PollAsync_ParsesAnnotations_IntoAnnotationInfo()
     {
         var annotations = new Dictionary<string, string>
         {
@@ -345,14 +345,15 @@ public class EngineMonitorServiceTests
         await service.PollAsync(CancellationToken.None);
 
         var state = stateStore.GetState("amass-engine-0");
-        Assert.NotNull(state?.TorCheck);
-        Assert.True(state!.TorCheck!.IsTor);
-        Assert.Equal("1.2.3.4", state.TorCheck.PublicIP);
-        Assert.False(state.TorCheck.IsError);
+        Assert.NotNull(state?.AnnotationInfo);
+        Assert.True(state!.AnnotationInfo!.IsTor);
+        Assert.Equal("1.2.3.4", state.AnnotationInfo.PublicIP);
+        Assert.Equal(IpCheckStatus.Ok, state.AnnotationInfo.CheckStatus);
+        Assert.Null(state.AnnotationInfo.CheckError);
     }
 
     [Fact]
-    public async Task PollAsync_HandlesTorAnnotation_ErrorStatus()
+    public async Task PollAsync_HandlesAnnotation_ErrorStatus()
     {
         var annotations = new Dictionary<string, string>
         {
@@ -381,13 +382,13 @@ public class EngineMonitorServiceTests
         await service.PollAsync(CancellationToken.None);
 
         var state = stateStore.GetState("amass-engine-0");
-        Assert.NotNull(state?.TorCheck);
-        Assert.True(state!.TorCheck!.IsError);
-        Assert.Equal("error:unreachable", state.TorCheck.ErrorMessage);
+        Assert.NotNull(state?.AnnotationInfo);
+        Assert.Equal(IpCheckStatus.Error, state!.AnnotationInfo!.CheckStatus);
+        Assert.Equal("error:unreachable", state.AnnotationInfo.CheckError);
     }
 
     [Fact]
-    public async Task PollAsync_NoTorAnnotations_TorCheckIsNull()
+    public async Task PollAsync_NoAnnotations_AnnotationInfoIsNull()
     {
         var pods = new List<EnginePodInfo>
         {
@@ -411,6 +412,43 @@ public class EngineMonitorServiceTests
 
         var state = stateStore.GetState("amass-engine-0");
         Assert.NotNull(state);
-        Assert.Null(state!.TorCheck);
+        Assert.Null(state!.AnnotationInfo);
+    }
+
+    [Fact]
+    public async Task PollAsync_PublicIpOnly_NoTorAnnotation_AnnotationInfoHasNullIsTor()
+    {
+        var annotations = new Dictionary<string, string>
+        {
+            ["amass.io/public-ip"] = "5.6.7.8",
+            ["amass.io/ip-check-status"] = "ok",
+            ["amass.io/ip-check-time"] = "2026-03-11T12:00:00Z"
+        };
+
+        var pods = new List<EnginePodInfo>
+        {
+            new("amass-engine-0", "10.0.0.1", 0, "Running", true, annotations)
+        };
+
+        var discoveryMock = new Mock<IKubernetesDiscoveryService>();
+        discoveryMock.Setup(d => d.DiscoverEnginePodsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pods);
+
+        var clientMock = new Mock<IAmassEngineClient>();
+        clientMock.Setup(c => c.HealthCheckAsync("10.0.0.1", 8080, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HealthCheckResponse { Result = "Amass Engine OK" });
+        clientMock.Setup(c => c.ListSessionsAsync("10.0.0.1", 8080, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ListSessionsResponse { SessionTokens = [] });
+
+        var stateStore = new EngineStateStore();
+        var service = CreateService(discoveryMock, clientMock, stateStore);
+
+        await service.PollAsync(CancellationToken.None);
+
+        var state = stateStore.GetState("amass-engine-0");
+        Assert.NotNull(state?.AnnotationInfo);
+        Assert.Equal("5.6.7.8", state!.AnnotationInfo!.PublicIP);
+        Assert.Null(state.AnnotationInfo.IsTor);
+        Assert.Equal(IpCheckStatus.Ok, state.AnnotationInfo.CheckStatus);
     }
 }
