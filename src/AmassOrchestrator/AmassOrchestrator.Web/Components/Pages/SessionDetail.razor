@@ -5,6 +5,9 @@
 @inject ISessionRepository SessionRepository
 @inject NavigationManager Navigation
 @using Microsoft.Extensions.Options
+@using System.Text.Json
+@using AmassOrchestrator.Web.Models
+@using AmassOrchestrator.Web.Services
 
 <PageTitle>Session @ShortToken - Amass Conductor</PageTitle>
 
@@ -71,6 +74,14 @@
                     </RadzenStack>
                 </div>
             </RadzenTabsItem>
+            @if (_config != null)
+            {
+                <RadzenTabsItem Text="Configuration">
+                    <div class="rz-p-4">
+                        @ConfigurationContent
+                    </div>
+                </RadzenTabsItem>
+            }
         </Tabs>
     </RadzenTabs>
 }
@@ -124,6 +135,14 @@ else if (_dbRecord != null)
                     </RadzenCard>
                 </div>
             </RadzenTabsItem>
+            @if (_config != null)
+            {
+                <RadzenTabsItem Text="Configuration">
+                    <div class="rz-p-4">
+                        @ConfigurationContent
+                    </div>
+                </RadzenTabsItem>
+            }
         </Tabs>
     </RadzenTabs>
 }
@@ -144,6 +163,7 @@ else
     private SessionInfo? _session;
     private SessionRecord? _dbRecord;
     private List<string> _historicalLogs = [];
+    private AmassConfig? _config;
 
     private static readonly string[] _assetTypes = ["fqdn", "ipaddress", "autonomoussystem", "netblock", "location", "organization"];
 
@@ -171,6 +191,24 @@ else
         else if (_session.IsCompleted)
         {
             await LoadHistoricalLogs();
+        }
+
+        await LoadConfig();
+    }
+
+    private async Task LoadConfig()
+    {
+        var json = await SessionRepository.GetConfigJsonAsync(SessionToken);
+        if (!string.IsNullOrWhiteSpace(json))
+        {
+            try
+            {
+                _config = JsonSerializer.Deserialize<AmassConfig>(json);
+            }
+            catch
+            {
+                // Config JSON is malformed — leave _config null
+            }
         }
     }
 
@@ -205,6 +243,108 @@ else
 
         await InvokeAsync(StateHasChanged);
     }
+
+    private static string MaskSecret(string? value)
+        => string.IsNullOrEmpty(value) ? "—" : value.Length <= 4 ? "****" : value[..2] + new string('*', value.Length - 4) + value[^2..];
+
+    private RenderFragment ConfigurationContent => __builder =>
+    {
+        <RadzenStack Gap="1.5rem">
+            @* ── Domains ── *@
+            @if (_config!.Scope?.Domains is { Count: > 0 } domains)
+            {
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Domains</RadzenText>
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                        @foreach (var d in domains)
+                        {
+                            <RadzenBadge Text="@d" BadgeStyle="BadgeStyle.Primary" />
+                        }
+                    </RadzenStack>
+                </RadzenCard>
+            }
+
+            @* ── Options ── *@
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Options</RadzenText>
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                    <RadzenBadge Text="Active" BadgeStyle="@(_config.Active == true ? BadgeStyle.Success : BadgeStyle.Light)" />
+                    <RadzenBadge Text="Brute Force" BadgeStyle="@(_config.BruteForce == true ? BadgeStyle.Success : BadgeStyle.Light)" />
+                    <RadzenBadge Text="Alterations" BadgeStyle="@(_config.Alterations == true ? BadgeStyle.Success : BadgeStyle.Light)" />
+                    <RadzenBadge Text="Rigid Boundaries" BadgeStyle="@(_config.RigidBoundaries == true ? BadgeStyle.Success : BadgeStyle.Light)" />
+                </RadzenStack>
+            </RadzenCard>
+
+            @* ── Wordlists ── *@
+            @if (_config.Wordlist is { Count: > 0 })
+            {
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Brute Force Wordlist</RadzenText>
+                    <pre style="max-height: 150px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem;">@string.Join("\n", _config.Wordlist)</pre>
+                </RadzenCard>
+            }
+            @if (_config.AltWorldlist is { Count: > 0 })
+            {
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Alterations Wordlist</RadzenText>
+                    <pre style="max-height: 150px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem;">@string.Join("\n", _config.AltWorldlist)</pre>
+                </RadzenCard>
+            }
+
+            @* ── Database ── *@
+            @if (_config.Database is { Count: > 0 })
+            {
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Database</RadzenText>
+                    @foreach (var db in _config.Database)
+                    {
+                        <RadzenStack Gap="0.25rem" class="rz-mb-2">
+                            <RadzenText TextStyle="TextStyle.Body2"><strong>System:</strong> @(db.System ?? "—")</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body2"><strong>Host:</strong> @(db.Host ?? "—"):@(db.Port ?? "—")</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body2"><strong>Database:</strong> @(db.DbName ?? "—")</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body2"><strong>Username:</strong> @(db.Username ?? "—")</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body2"><strong>Password:</strong> @MaskSecret(db.Password)</RadzenText>
+                            @if (db.Primary == true)
+                            {
+                                <RadzenBadge Text="Primary" BadgeStyle="BadgeStyle.Info" />
+                            }
+                        </RadzenStack>
+                    }
+                </RadzenCard>
+            }
+
+            @* ── Datasources ── *@
+            @if (_config.DatasourceConfig != null)
+            {
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Datasources</RadzenText>
+                    @{
+                        var yaml = DatasourceConfigParser.Serialize(_config.DatasourceConfig);
+                    }
+                    @if (!string.IsNullOrWhiteSpace(yaml))
+                    {
+                        <pre style="max-height: 300px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem;">@yaml</pre>
+                    }
+                </RadzenCard>
+            }
+
+            @* ── Transformations ── *@
+            @if (_config.Transformations is { Count: > 0 })
+            {
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Transformations</RadzenText>
+                    <RadzenDataGrid Data="@_config.Transformations.Select(kv => new { Name = kv.Key, kv.Value.Priority, kv.Value.Confidence, kv.Value.Ttl })" TItem="object" Density="Density.Compact">
+                        <Columns>
+                            <RadzenDataGridColumn Property="Name" Title="Name" />
+                            <RadzenDataGridColumn Property="Priority" Title="Priority" Width="100px" />
+                            <RadzenDataGridColumn Property="Confidence" Title="Confidence" Width="100px" />
+                            <RadzenDataGridColumn Property="Ttl" Title="TTL" Width="100px" />
+                        </Columns>
+                    </RadzenDataGrid>
+                </RadzenCard>
+            }
+        </RadzenStack>
+    };
 
     public void Dispose()
     {
