@@ -3,6 +3,9 @@
 @inject EngineStateStore StateStore
 @inject IOptions<AmassOrchestrator.Web.Configuration.OrchestratorOptions> Options
 @inject ISessionRepository SessionRepository
+@inject IEnumerationService EnumerationService
+@inject DialogService DialogService
+@inject NotificationService NotificationService
 @inject NavigationManager Navigation
 @using Microsoft.Extensions.Options
 @using System.Text.Json
@@ -90,7 +93,27 @@ else if (_dbRecord != null)
     <!-- Historical session view (session no longer on engine) -->
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" class="rz-mt-4 rz-mb-4">
         <RadzenText TextStyle="TextStyle.H4" class="rz-m-0">Session @ShortToken</RadzenText>
-        <RadzenBadge Text="Historical" BadgeStyle="BadgeStyle.Info" />
+        @if (_dbRecord.IsFailed)
+        {
+            <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="Failed" />
+        }
+        else if (_dbRecord.IsCancelled)
+        {
+            <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Cancelled" />
+        }
+        else if (_dbRecord.IsCompleted)
+        {
+            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Completed" />
+        }
+        else
+        {
+            <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="Historical" />
+        }
+        @if (_dbRecord.IsFailed || _dbRecord.IsCancelled)
+        {
+            <RadzenButton Text="Retry" Icon="replay" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" Click="@RetrySession" />
+            <RadzenButton Text="Delete" Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@DeleteSessionRecord" />
+        }
     </RadzenStack>
 
     <RadzenText TextStyle="TextStyle.Body1" class="rz-mb-4">
@@ -101,13 +124,25 @@ else if (_dbRecord != null)
         <Tabs>
             <RadzenTabsItem Text="Stats">
                 <div class="rz-p-4">
-                    @if (_dbRecord.IsCompleted)
+                    @if (_dbRecord.IsFailed)
+                    {
+                        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" class="rz-mb-4">
+                            @(_dbRecord.ErrorMessage ?? "Enumeration failed.")
+                        </RadzenAlert>
+                    }
+                    else if (_dbRecord.IsCancelled)
+                    {
+                        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true" class="rz-mb-4">
+                            Enumeration was cancelled.
+                        </RadzenAlert>
+                    }
+                    else if (_dbRecord.IsCompleted)
                     {
                         <RadzenAlert AlertStyle="AlertStyle.Success" ShowIcon="true" class="rz-mb-4">
                             Enumeration completed.
                         </RadzenAlert>
                     }
-                    <ProgressBar Completed="@_dbRecord.WorkItemsCompleted" Total="@_dbRecord.WorkItemsTotal" IsCompleted="@_dbRecord.IsCompleted" />
+                    <ProgressBar Completed="@_dbRecord.WorkItemsCompleted" Total="@_dbRecord.WorkItemsTotal" IsCompleted="@_dbRecord.IsCompleted" IsFailed="@_dbRecord.IsFailed" IsCancelled="@_dbRecord.IsCancelled" />
                     <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2">
                         Engine: @_dbRecord.EnginePodName
                     </RadzenText>
@@ -242,6 +277,73 @@ else
         }
 
         await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RetrySession()
+    {
+        if (_dbRecord == null) return;
+
+        var configJson = await SessionRepository.GetConfigJsonAsync(SessionToken);
+        if (string.IsNullOrEmpty(configJson))
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "No saved config", "Cannot retry — configuration not found.");
+            return;
+        }
+
+        var config = JsonSerializer.Deserialize<AmassConfig>(configJson);
+        if (config == null)
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Invalid config", "Cannot retry — configuration could not be parsed.");
+            return;
+        }
+
+        var parameters = new Dictionary<string, object?>
+        {
+            { nameof(CreateSessionDialog.InitialConfig), config },
+            { nameof(CreateSessionDialog.ShowEngineChoice), !string.IsNullOrEmpty(_dbRecord.EnginePodName) },
+            { nameof(CreateSessionDialog.OriginalEnginePodName), _dbRecord.EnginePodName ?? string.Empty }
+        };
+
+        var result = await DialogService.OpenAsync<CreateSessionDialog>(
+            "Retry Enumeration",
+            parameters,
+            new DialogOptions { Width = "80%" });
+
+        if (result is CreateSessionDialogResult dialogResult)
+        {
+            var newConfig = dialogResult.Config;
+            var enumResult = dialogResult.UseSameEngine && !string.IsNullOrEmpty(dialogResult.TargetEnginePodName)
+                ? await EnumerationService.StartEnumerationOnEngineAsync(dialogResult.TargetEnginePodName, newConfig)
+                : await EnumerationService.StartEnumerationAsync(newConfig);
+
+            if (enumResult.Success)
+            {
+                await SessionRepository.DeleteAsync(SessionToken);
+                await SessionRepository.DeleteLogsAsync(SessionToken);
+                NotificationService.Notify(NotificationSeverity.Success, "Enumeration started",
+                    $"Session {enumResult.SessionToken} on {enumResult.EnginePodName}");
+                Navigation.NavigateTo("sessions");
+            }
+            else
+            {
+                var errorMessage = enumResult.ErrorMessage ?? "Unknown error";
+                NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", errorMessage);
+                var newConfigJson = JsonSerializer.Serialize(newConfig);
+                await SessionRepository.CreateFailedAsync(newConfig.Scope?.Domains ?? [], newConfigJson, errorMessage);
+            }
+        }
+    }
+
+    private async Task DeleteSessionRecord()
+    {
+        var confirmed = await DialogService.Confirm("Delete this session record?", "Confirm Delete",
+            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel" });
+        if (confirmed != true) return;
+
+        await SessionRepository.DeleteAsync(SessionToken);
+        await SessionRepository.DeleteLogsAsync(SessionToken);
+        NotificationService.Notify(NotificationSeverity.Success, "Session deleted");
+        Navigation.NavigateTo("sessions");
     }
 
     private static string MaskSecret(string? value)

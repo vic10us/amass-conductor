@@ -16,4 +16,5 @@ public class SessionRecord
     public string? ConfigJson { get; set; }
     public bool IsFailed { get; set; }
     public string? ErrorMessage { get; set; }
+    public bool IsCancelled { get; set; }
 }

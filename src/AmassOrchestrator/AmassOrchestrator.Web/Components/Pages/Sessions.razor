@@ -63,7 +63,7 @@
         </RadzenDataGridColumn>
         <RadzenDataGridColumn TItem="SessionViewModel" Title="Progress" Width="180px" Sortable="false">
             <Template Context="session">
-                <ProgressBar Completed="@session.WorkItemsCompleted" Total="@session.WorkItemsTotal" IsCompleted="@session.IsCompleted" />
+                <ProgressBar Completed="@session.WorkItemsCompleted" Total="@session.WorkItemsTotal" IsCompleted="@session.IsCompleted" IsFailed="@session.IsFailed" IsCancelled="@session.IsCancelled" />
             </Template>
         </RadzenDataGridColumn>
         <RadzenDataGridColumn TItem="SessionViewModel" Property="IsCompleted" Title="Status" Width="120px">
@@ -72,11 +72,15 @@
                 {
                     <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="Failed" title="@session.ErrorMessage" />
                 }
+                else if (session.IsCancelled)
+                {
+                    <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Cancelled" />
+                }
                 else if (session.IsCompleted)
                 {
                     <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Completed" />
                 }
-                else if (session.IsLive)
+                else if (session.IsLive && !session.IsCompleted)
                 {
                     <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="Active" />
                 }
@@ -93,7 +97,7 @@
         </RadzenDataGridColumn>
         <RadzenDataGridColumn TItem="SessionViewModel" Title="Actions" Width="130px" Sortable="false">
             <Template Context="session">
-                @if (session.IsFailed)
+                @if (session.IsFailed || session.IsCancelled)
                 {
                     <RadzenButton Icon="replay" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.ExtraSmall"
                                   Variant="Variant.Text" Click="@(() => RestartSession(session))" title="Retry" />
@@ -127,7 +131,7 @@
     private string? _engineFilter;
     private string? _domainSearch;
 
-    private static readonly string[] _statusOptions = ["All", "Active", "Completed", "Failed"];
+    private static readonly string[] _statusOptions = ["All", "Active", "Completed", "Failed", "Cancelled"];
     private List<string> _engineOptions = [];
 
     protected override async Task OnInitializedAsync()
@@ -166,7 +170,8 @@
                 CompletedAtUtc = rec.CompletedAtUtc,
                 Domains = rec.Domains,
                 IsFailed = rec.IsFailed,
-                ErrorMessage = rec.ErrorMessage
+                ErrorMessage = rec.ErrorMessage,
+                IsCancelled = rec.IsCancelled
             };
         }
 
@@ -207,11 +212,13 @@
         var filtered = _allSessions.AsEnumerable();
 
         if (_statusFilter == "Active")
-            filtered = filtered.Where(s => !s.IsCompleted && !s.IsFailed);
+            filtered = filtered.Where(s => !s.IsCompleted && !s.IsFailed && !s.IsCancelled);
         else if (_statusFilter == "Completed")
             filtered = filtered.Where(s => s.IsCompleted);
         else if (_statusFilter == "Failed")
             filtered = filtered.Where(s => s.IsFailed);
+        else if (_statusFilter == "Cancelled")
+            filtered = filtered.Where(s => s.IsCancelled);
 
         if (!string.IsNullOrEmpty(_engineFilter))
             filtered = filtered.Where(s => s.EnginePodName == _engineFilter);
@@ -294,7 +301,7 @@
 
             if (enumResult.Success)
             {
-                if (session.IsFailed)
+                if (session.IsFailed || session.IsCancelled)
                 {
                     await SessionRepository.DeleteAsync(session.Token);
                     await SessionRepository.DeleteLogsAsync(session.Token);
@@ -321,8 +328,17 @@
         if (confirmed != true) return;
 
         var success = await EngineClient.DeleteSessionAsync(session.PodIp, Options.Value.EnginePort, session.Token);
-        NotificationService.Notify(success ? NotificationSeverity.Success : NotificationSeverity.Error,
-            success ? "Session stopped" : "Failed to stop session", session.Token);
+        if (success)
+        {
+            await SessionRepository.MarkCancelledAsync(session.Token);
+            NotificationService.Notify(NotificationSeverity.Success, "Session stopped", session.Token);
+            await LoadSessions();
+            await InvokeAsync(StateHasChanged);
+        }
+        else
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Failed to stop session", session.Token);
+        }
     }
 
     private async Task DeleteSession(SessionViewModel session)
@@ -352,19 +368,25 @@
         foreach (var session in liveSessions)
         {
             if (!string.IsNullOrEmpty(session.PodIp))
-                await EngineClient.DeleteSessionAsync(session.PodIp, Options.Value.EnginePort, session.Token);
+            {
+                var success = await EngineClient.DeleteSessionAsync(session.PodIp, Options.Value.EnginePort, session.Token);
+                if (success)
+                    await SessionRepository.MarkCancelledAsync(session.Token);
+            }
         }
 
         NotificationService.Notify(NotificationSeverity.Success, $"Stopped {liveSessions.Count} session(s)");
+        await LoadSessions();
+        await InvokeAsync(StateHasChanged);
         _selectedSessions = new List<SessionViewModel>();
     }
 
     private async Task DeleteSelected()
     {
-        var deletableSessions = _selectedSessions.Where(s => s.IsCompleted || s.IsFailed).ToList();
+        var deletableSessions = _selectedSessions.Where(s => s.IsCompleted || s.IsFailed || s.IsCancelled).ToList();
         if (!deletableSessions.Any())
         {
-            NotificationService.Notify(NotificationSeverity.Warning, "No completed or failed sessions selected for deletion");
+            NotificationService.Notify(NotificationSeverity.Warning, "No completed, failed, or cancelled sessions selected for deletion");
             return;
         }
 
@@ -385,18 +407,18 @@
 
     private async Task RestartSelected()
     {
-        var completedSessions = _selectedSessions.Where(s => s.IsCompleted).ToList();
-        if (!completedSessions.Any())
+        var restartableSessions = _selectedSessions.Where(s => s.IsCompleted || s.IsFailed || s.IsCancelled).ToList();
+        if (!restartableSessions.Any())
         {
-            NotificationService.Notify(NotificationSeverity.Warning, "No completed sessions selected for restart");
+            NotificationService.Notify(NotificationSeverity.Warning, "No completed, failed, or cancelled sessions selected for restart");
             return;
         }
 
-        var confirmed = await DialogService.Confirm($"Restart {completedSessions.Count} session(s)?", "Confirm Bulk Restart");
+        var confirmed = await DialogService.Confirm($"Restart {restartableSessions.Count} session(s)?", "Confirm Bulk Restart");
         if (confirmed != true) return;
 
         var restarted = 0;
-        foreach (var session in completedSessions)
+        foreach (var session in restartableSessions)
         {
             var configJson = await SessionRepository.GetConfigJsonAsync(session.Token);
             if (string.IsNullOrEmpty(configJson)) continue;
@@ -407,6 +429,11 @@
             var result = await EnumerationService.StartEnumerationAsync(config);
             if (result.Success)
             {
+                if (session.IsFailed || session.IsCancelled)
+                {
+                    await SessionRepository.DeleteAsync(session.Token);
+                    await SessionRepository.DeleteLogsAsync(session.Token);
+                }
                 restarted++;
             }
             else
@@ -418,7 +445,7 @@
             }
         }
 
-        NotificationService.Notify(NotificationSeverity.Success, $"Restarted {restarted} of {completedSessions.Count} session(s)");
+        NotificationService.Notify(NotificationSeverity.Success, $"Restarted {restarted} of {restartableSessions.Count} session(s)");
         _selectedSessions = new List<SessionViewModel>();
         await LoadSessions();
         await InvokeAsync(StateHasChanged);

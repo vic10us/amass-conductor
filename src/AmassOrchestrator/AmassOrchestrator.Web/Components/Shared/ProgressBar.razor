@@ -8,7 +8,15 @@
                 <text>(@ItemsPerSecond.ToString("F2") items/s)</text>
             }
         </RadzenText>
-        @if (IsCompleted)
+        @if (IsFailed)
+        {
+            <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="Failed" />
+        }
+        else if (IsCancelled)
+        {
+            <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Cancelled" />
+        }
+        else if (IsCompleted)
         {
             <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Completed" />
         }
@@ -19,11 +27,23 @@
     [Parameter] public int Completed { get; set; }
     [Parameter] public int Total { get; set; }
     [Parameter] public bool IsCompleted { get; set; }
+    [Parameter] public bool IsFailed { get; set; }
+    [Parameter] public bool IsCancelled { get; set; }
     [Parameter] public double ItemsPerSecond { get; set; }
 
     private double Percent => Total > 0 ? Math.Round(100.0 * Completed / Total, 1) : 0;
 
-    private string BarStyle => IsCompleted
-        ? "height: 20px; --rz-progressbar-fill-background: var(--rz-success);"
-        : "height: 20px;";
+    private string BarStyle
+    {
+        get
+        {
+            if (IsFailed)
+                return "height: 20px; --rz-progressbar-fill-background: var(--rz-danger);";
+            if (IsCancelled)
+                return "height: 20px; --rz-progressbar-fill-background: var(--rz-warning);";
+            if (IsCompleted)
+                return "height: 20px; --rz-progressbar-fill-background: var(--rz-success);";
+            return "height: 20px;";
+        }
+    }
 }
