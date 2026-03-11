@@ -72,10 +72,10 @@ public class EngineMonitorService : BackgroundService
 
             var sessions = new List<SessionInfo>();
             var listResponse = await _engineClient.ListSessionsAsync(pod.PodIP, port, token);
+            var previousState = _stateStore.GetState(pod.PodName);
 
             if (listResponse?.SessionTokens != null)
             {
-                var previousState = _stateStore.GetState(pod.PodName);
 
                 foreach (var sessionToken in listResponse.SessionTokens)
                 {
@@ -152,7 +152,9 @@ public class EngineMonitorService : BackgroundService
                 }
             }
 
-            var state = new EngineInstanceState(pod, isHealthy, sessions);
+            var torCheck = TorCheckResult.FromAnnotations(pod.Annotations);
+
+            var state = new EngineInstanceState(pod, isHealthy, sessions, torCheck);
             _stateStore.UpdateState(pod.PodName, state);
         });
 

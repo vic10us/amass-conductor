@@ -59,6 +59,8 @@ public class KubernetesDiscoveryService : IKubernetesDiscoveryService
         var isReady = pod.Status.Conditions?
             .Any(c => c.Type == "Ready" && c.Status == "True") ?? false;
 
-        return new EnginePodInfo(name, ip, ordinal, phase, isReady);
+        var annotations = pod.Metadata.Annotations;
+
+        return new EnginePodInfo(name, ip, ordinal, phase, isReady, annotations);
     }
 }

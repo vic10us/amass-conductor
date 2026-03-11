@@ -4,7 +4,24 @@
     <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
         <RadzenStack Gap="0.25rem">
             <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">@State.Pod.PodName</RadzenText>
-            <RadzenText TextStyle="TextStyle.Caption">@State.Pod.PodIP - @State.Pod.Phase</RadzenText>
+            <RadzenText TextStyle="TextStyle.Caption">
+                @State.Pod.PodIP - @State.Pod.Phase
+                @if (State.TorCheck is not null)
+                {
+                    if (State.TorCheck.IsError)
+                    {
+                        <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Tor ?" />
+                    }
+                    else if (State.TorCheck.IsTor)
+                    {
+                        <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="@($"Tor {State.TorCheck.PublicIP}")" />
+                    }
+                    else
+                    {
+                        <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="@($"Direct {State.TorCheck.PublicIP}")" />
+                    }
+                }
+            </RadzenText>
         </RadzenStack>
         <HealthBadge IsHealthy="@State.IsHealthy" IsReady="@State.Pod.IsReady" />
     </RadzenStack>

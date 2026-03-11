@@ -5,4 +5,5 @@ public record EnginePodInfo(
     string PodIP,
     int Ordinal,
     string Phase,
-    bool IsReady);
+    bool IsReady,
+    IDictionary<string, string>? Annotations = null);

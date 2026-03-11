@@ -23,6 +23,13 @@ public class EngineMonitorServiceTests
         return mock.Object;
     }
 
+    private static EngineMonitorService CreateService(
+        Mock<IKubernetesDiscoveryService> discoveryMock,
+        Mock<IAmassEngineClient> clientMock,
+        EngineStateStore stateStore) =>
+        new(discoveryMock.Object, clientMock.Object, stateStore,
+            DefaultOptions(), NullLogger<EngineMonitorService>.Instance, Mock.Of<ISessionRepository>());
+
     [Fact]
     public async Task PollAsync_UpdatesStateStore_WithDiscoveredPods()
     {
@@ -44,10 +51,7 @@ public class EngineMonitorServiceTests
             .ReturnsAsync(new SessionStatsResponse { WorkItemsCompleted = 3, WorkItemsTotal = 10 });
 
         var stateStore = new EngineStateStore();
-
-        var service = new EngineMonitorService(
-            discoveryMock.Object, clientMock.Object, stateStore,
-            DefaultOptions(), NullLogger<EngineMonitorService>.Instance, Mock.Of<ISessionRepository>());
+        var service = CreateService(discoveryMock, clientMock, stateStore);
 
         await service.PollAsync(CancellationToken.None);
 
@@ -89,9 +93,7 @@ public class EngineMonitorServiceTests
         clientMock.Setup(c => c.ListSessionsAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ListSessionsResponse { SessionTokens = [] });
 
-        var service = new EngineMonitorService(
-            discoveryMock.Object, clientMock.Object, stateStore,
-            DefaultOptions(), NullLogger<EngineMonitorService>.Instance, Mock.Of<ISessionRepository>());
+        var service = CreateService(discoveryMock, clientMock, stateStore);
 
         await service.PollAsync(CancellationToken.None);
 
@@ -120,9 +122,7 @@ public class EngineMonitorServiceTests
             .ReturnsAsync(new SessionStatsResponse { WorkItemsCompleted = 10, WorkItemsTotal = 10 });
 
         var stateStore = new EngineStateStore();
-        var service = new EngineMonitorService(
-            discoveryMock.Object, clientMock.Object, stateStore,
-            DefaultOptions(), NullLogger<EngineMonitorService>.Instance, Mock.Of<ISessionRepository>());
+        var service = CreateService(discoveryMock, clientMock, stateStore);
 
         // Poll 5 times — should become completed on the 5th
         for (var i = 0; i < 5; i++)
@@ -160,9 +160,7 @@ public class EngineMonitorServiceTests
             .ReturnsAsync(new ListSessionsResponse { SessionTokens = ["token-1"] });
 
         var stateStore = new EngineStateStore();
-        var service = new EngineMonitorService(
-            discoveryMock.Object, clientMock.Object, stateStore,
-            DefaultOptions(), NullLogger<EngineMonitorService>.Instance, Mock.Of<ISessionRepository>());
+        var service = CreateService(discoveryMock, clientMock, stateStore);
 
         // 3 polls with completed == total
         clientMock.Setup(c => c.GetSessionStatsAsync("10.0.0.1", 8080, "token-1", It.IsAny<CancellationToken>()))
@@ -207,9 +205,7 @@ public class EngineMonitorServiceTests
             .ReturnsAsync(new SessionStatsResponse { WorkItemsCompleted = 5, WorkItemsTotal = 100 });
 
         var stateStore = new EngineStateStore();
-        var service = new EngineMonitorService(
-            discoveryMock.Object, clientMock.Object, stateStore,
-            DefaultOptions(), NullLogger<EngineMonitorService>.Instance, Mock.Of<ISessionRepository>());
+        var service = CreateService(discoveryMock, clientMock, stateStore);
 
         await service.PollAsync(CancellationToken.None);
 
@@ -237,9 +233,7 @@ public class EngineMonitorServiceTests
             .ReturnsAsync(new ListSessionsResponse { SessionTokens = ["token-1"] });
 
         var stateStore = new EngineStateStore();
-        var service = new EngineMonitorService(
-            discoveryMock.Object, clientMock.Object, stateStore,
-            DefaultOptions(), NullLogger<EngineMonitorService>.Instance, Mock.Of<ISessionRepository>());
+        var service = CreateService(discoveryMock, clientMock, stateStore);
 
         // First poll: 5 items completed
         clientMock.Setup(c => c.GetSessionStatsAsync("10.0.0.1", 8080, "token-1", It.IsAny<CancellationToken>()))
@@ -280,9 +274,7 @@ public class EngineMonitorServiceTests
             .ReturnsAsync(new SessionStatsResponse { WorkItemsCompleted = 5, WorkItemsTotal = 100 });
 
         var stateStore = new EngineStateStore();
-        var service = new EngineMonitorService(
-            discoveryMock.Object, clientMock.Object, stateStore,
-            DefaultOptions(), NullLogger<EngineMonitorService>.Instance, Mock.Of<ISessionRepository>());
+        var service = CreateService(discoveryMock, clientMock, stateStore);
 
         // Two polls with same completed count
         await service.PollAsync(CancellationToken.None);
@@ -311,10 +303,7 @@ public class EngineMonitorServiceTests
             .ReturnsAsync((ListSessionsResponse?)null);
 
         var stateStore = new EngineStateStore();
-
-        var service = new EngineMonitorService(
-            discoveryMock.Object, clientMock.Object, stateStore,
-            DefaultOptions(), NullLogger<EngineMonitorService>.Instance, Mock.Of<ISessionRepository>());
+        var service = CreateService(discoveryMock, clientMock, stateStore);
 
         await service.PollAsync(CancellationToken.None);
 
@@ -322,5 +311,106 @@ public class EngineMonitorServiceTests
         Assert.NotNull(state);
         Assert.False(state!.IsHealthy);
         Assert.Empty(state.Sessions);
+    }
+
+    [Fact]
+    public async Task PollAsync_ParsesTorAnnotations_IntoTorCheckResult()
+    {
+        var annotations = new Dictionary<string, string>
+        {
+            ["amass.io/public-ip"] = "1.2.3.4",
+            ["amass.io/is-tor"] = "true",
+            ["amass.io/ip-check-time"] = "2026-03-11T12:00:00Z",
+            ["amass.io/ip-check-status"] = "ok"
+        };
+
+        var pods = new List<EnginePodInfo>
+        {
+            new("amass-engine-0", "10.0.0.1", 0, "Running", true, annotations)
+        };
+
+        var discoveryMock = new Mock<IKubernetesDiscoveryService>();
+        discoveryMock.Setup(d => d.DiscoverEnginePodsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pods);
+
+        var clientMock = new Mock<IAmassEngineClient>();
+        clientMock.Setup(c => c.HealthCheckAsync("10.0.0.1", 8080, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HealthCheckResponse { Result = "Amass Engine OK" });
+        clientMock.Setup(c => c.ListSessionsAsync("10.0.0.1", 8080, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ListSessionsResponse { SessionTokens = [] });
+
+        var stateStore = new EngineStateStore();
+        var service = CreateService(discoveryMock, clientMock, stateStore);
+
+        await service.PollAsync(CancellationToken.None);
+
+        var state = stateStore.GetState("amass-engine-0");
+        Assert.NotNull(state?.TorCheck);
+        Assert.True(state!.TorCheck!.IsTor);
+        Assert.Equal("1.2.3.4", state.TorCheck.PublicIP);
+        Assert.False(state.TorCheck.IsError);
+    }
+
+    [Fact]
+    public async Task PollAsync_HandlesTorAnnotation_ErrorStatus()
+    {
+        var annotations = new Dictionary<string, string>
+        {
+            ["amass.io/ip-check-status"] = "error:unreachable",
+            ["amass.io/ip-check-time"] = "2026-03-11T12:00:00Z"
+        };
+
+        var pods = new List<EnginePodInfo>
+        {
+            new("amass-engine-0", "10.0.0.1", 0, "Running", true, annotations)
+        };
+
+        var discoveryMock = new Mock<IKubernetesDiscoveryService>();
+        discoveryMock.Setup(d => d.DiscoverEnginePodsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pods);
+
+        var clientMock = new Mock<IAmassEngineClient>();
+        clientMock.Setup(c => c.HealthCheckAsync("10.0.0.1", 8080, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HealthCheckResponse { Result = "Amass Engine OK" });
+        clientMock.Setup(c => c.ListSessionsAsync("10.0.0.1", 8080, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ListSessionsResponse { SessionTokens = [] });
+
+        var stateStore = new EngineStateStore();
+        var service = CreateService(discoveryMock, clientMock, stateStore);
+
+        await service.PollAsync(CancellationToken.None);
+
+        var state = stateStore.GetState("amass-engine-0");
+        Assert.NotNull(state?.TorCheck);
+        Assert.True(state!.TorCheck!.IsError);
+        Assert.Equal("error:unreachable", state.TorCheck.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task PollAsync_NoTorAnnotations_TorCheckIsNull()
+    {
+        var pods = new List<EnginePodInfo>
+        {
+            new("amass-engine-0", "10.0.0.1", 0, "Running", true)
+        };
+
+        var discoveryMock = new Mock<IKubernetesDiscoveryService>();
+        discoveryMock.Setup(d => d.DiscoverEnginePodsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pods);
+
+        var clientMock = new Mock<IAmassEngineClient>();
+        clientMock.Setup(c => c.HealthCheckAsync("10.0.0.1", 8080, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HealthCheckResponse { Result = "Amass Engine OK" });
+        clientMock.Setup(c => c.ListSessionsAsync("10.0.0.1", 8080, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ListSessionsResponse { SessionTokens = [] });
+
+        var stateStore = new EngineStateStore();
+        var service = CreateService(discoveryMock, clientMock, stateStore);
+
+        await service.PollAsync(CancellationToken.None);
+
+        var state = stateStore.GetState("amass-engine-0");
+        Assert.NotNull(state);
+        Assert.Null(state!.TorCheck);
     }
 }

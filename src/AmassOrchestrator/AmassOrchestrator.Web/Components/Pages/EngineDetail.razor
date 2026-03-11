@@ -34,6 +34,35 @@ else
         IP: @_state.Pod.PodIP | Phase: @_state.Pod.Phase | Ordinal: @_state.Pod.Ordinal
     </RadzenText>
 
+    <RadzenCard class="rz-mb-4">
+        <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-mb-2">Tor Status</RadzenText>
+        @if (_state.TorCheck is null)
+        {
+            <RadzenText TextStyle="TextStyle.Body2">Checking...</RadzenText>
+        }
+        else if (_state.TorCheck.IsError)
+        {
+            <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Check Failed" />
+            @if (_state.TorCheck.ErrorMessage is not null)
+            {
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">@_state.TorCheck.ErrorMessage</RadzenText>
+            }
+            <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-1">Last checked: @_state.TorCheck.CheckedAtUtc.ToString("u")</RadzenText>
+        }
+        else if (_state.TorCheck.IsTor)
+        {
+            <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Connected via Tor" />
+            <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">Public IP: @_state.TorCheck.PublicIP</RadzenText>
+            <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-1">Last checked: @_state.TorCheck.CheckedAtUtc.ToString("u")</RadzenText>
+        }
+        else
+        {
+            <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="NOT on Tor" />
+            <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-1">Public IP: @_state.TorCheck.PublicIP</RadzenText>
+            <RadzenText TextStyle="TextStyle.Caption" class="rz-mt-1">Last checked: @_state.TorCheck.CheckedAtUtc.ToString("u")</RadzenText>
+        }
+    </RadzenCard>
+
     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" class="rz-mb-4">
         <RadzenButton Text="Create Session" Icon="add" ButtonStyle="ButtonStyle.Primary" Click="@ShowCreateDialog" />
         <RadzenButton Text="New Enumeration (Auto)" Icon="play_arrow" ButtonStyle="ButtonStyle.Success" Click="@StartAutoEnumeration" />
