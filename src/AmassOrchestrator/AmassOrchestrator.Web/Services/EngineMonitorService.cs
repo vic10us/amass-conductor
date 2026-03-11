@@ -152,9 +152,9 @@ public class EngineMonitorService : BackgroundService
                 }
             }
 
-            var torCheck = TorCheckResult.FromAnnotations(pod.Annotations);
+            var annotationInfo = PodAnnotationInfo.FromAnnotations(pod.Annotations);
 
-            var state = new EngineInstanceState(pod, isHealthy, sessions, torCheck);
+            var state = new EngineInstanceState(pod, isHealthy, sessions, annotationInfo);
             _stateStore.UpdateState(pod.PodName, state);
         });
 
