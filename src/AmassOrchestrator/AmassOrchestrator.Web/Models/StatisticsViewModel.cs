@@ -17,6 +17,8 @@ public class StatisticsViewModel
     public List<EngineDistributionEntry> EngineDistribution { get; set; } = [];
     public List<WorkItemsPerSessionEntry> WorkItemsPerSession { get; set; } = [];
     public List<StatusDistributionEntry> StatusDistribution { get; set; } = [];
+    public List<ThroughputPerSessionEntry> ThroughputPerSession { get; set; } = [];
+    public double AverageThroughputPerSecond { get; set; }
 }
 
 public class SessionsOverTimeEntry
@@ -47,4 +49,10 @@ public class StatusDistributionEntry
 {
     public string Status { get; set; } = string.Empty;
     public int Count { get; set; }
+}
+
+public class ThroughputPerSessionEntry
+{
+    public string Token { get; set; } = string.Empty;
+    public double ItemsPerSecond { get; set; }
 }
