@@ -37,7 +37,7 @@
                             Enumeration completed.
                         </RadzenAlert>
                     }
-                    <ProgressBar Completed="@_session.WorkItemsCompleted" Total="@_session.WorkItemsTotal" IsCompleted="@_session.IsCompleted" />
+                    <ProgressBar Completed="@_session.WorkItemsCompleted" Total="@_session.WorkItemsTotal" IsCompleted="@_session.IsCompleted" ItemsPerSecond="@_session.ItemsPerSecond" />
                     <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2">
                         Progress: @_session.ProgressPercent%
                     </RadzenText>
@@ -105,6 +105,12 @@ else if (_dbRecord != null)
                         <RadzenText TextStyle="TextStyle.Body2">
                             Completed: @_dbRecord.CompletedAtUtc.Value.ToString("yyyy-MM-dd HH:mm:ss UTC")
                         </RadzenText>
+                        @if (HistoricalThroughput > 0)
+                        {
+                            <RadzenText TextStyle="TextStyle.Body2">
+                                Avg throughput: @HistoricalThroughput items/s
+                            </RadzenText>
+                        }
                     }
                 </div>
             </RadzenTabsItem>
@@ -140,6 +146,16 @@ else
     private List<string> _historicalLogs = [];
 
     private static readonly string[] _assetTypes = ["fqdn", "ipaddress", "autonomoussystem", "netblock", "location", "organization"];
+
+    private double HistoricalThroughput
+    {
+        get
+        {
+            if (_dbRecord?.CompletedAtUtc == null || _dbRecord.WorkItemsCompleted <= 0) return 0;
+            var duration = (_dbRecord.CompletedAtUtc.Value - _dbRecord.CreatedAtUtc).TotalSeconds;
+            return duration > 0 ? Math.Round(_dbRecord.WorkItemsCompleted / duration, 2) : 0;
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {

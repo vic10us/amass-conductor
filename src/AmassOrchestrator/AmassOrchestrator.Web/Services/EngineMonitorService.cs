@@ -87,6 +87,16 @@ public class EngineMonitorService : BackgroundService
                     var consecutivePolls = previous?.ConsecutiveCompletionPolls ?? 0;
                     var isCompleted = previous?.IsCompleted ?? false;
 
+                    var now = DateTime.UtcNow;
+                    double itemsPerSecond = 0;
+                    if (previous?.LastPollTimestamp != null)
+                    {
+                        var elapsed = (now - previous.LastPollTimestamp.Value).TotalSeconds;
+                        var delta = completed - previous.WorkItemsCompleted;
+                        if (elapsed > 0 && delta > 0)
+                            itemsPerSecond = Math.Round(delta / elapsed, 2);
+                    }
+
                     if (!isCompleted)
                     {
                         if (total > 0 && completed == total)
@@ -125,7 +135,9 @@ public class EngineMonitorService : BackgroundService
                         completed,
                         total,
                         isCompleted,
-                        consecutivePolls);
+                        consecutivePolls,
+                        itemsPerSecond,
+                        now);
 
                     sessions.Add(sessionInfo);
 

@@ -15,7 +15,8 @@
     {
         var totalCompleted = State.Sessions.Sum(s => s.WorkItemsCompleted);
         var totalItems = State.Sessions.Sum(s => s.WorkItemsTotal);
-        <ProgressBar Completed="@totalCompleted" Total="@totalItems" />
+        var totalRate = State.Sessions.Sum(s => s.ItemsPerSecond);
+        <ProgressBar Completed="@totalCompleted" Total="@totalItems" ItemsPerSecond="@totalRate" />
     }
 </RadzenCard>
 

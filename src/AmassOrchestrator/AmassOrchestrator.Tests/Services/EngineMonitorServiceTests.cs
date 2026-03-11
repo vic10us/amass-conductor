@@ -187,6 +187,112 @@ public class EngineMonitorServiceTests
     }
 
     [Fact]
+    public async Task PollAsync_FirstPoll_HasZeroItemsPerSecond()
+    {
+        var pods = new List<EnginePodInfo>
+        {
+            new("amass-engine-0", "10.0.0.1", 0, "Running", true)
+        };
+
+        var discoveryMock = new Mock<IKubernetesDiscoveryService>();
+        discoveryMock.Setup(d => d.DiscoverEnginePodsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pods);
+
+        var clientMock = new Mock<IAmassEngineClient>();
+        clientMock.Setup(c => c.HealthCheckAsync("10.0.0.1", 8080, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HealthCheckResponse { Result = "Amass Engine OK" });
+        clientMock.Setup(c => c.ListSessionsAsync("10.0.0.1", 8080, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ListSessionsResponse { SessionTokens = ["token-1"] });
+        clientMock.Setup(c => c.GetSessionStatsAsync("10.0.0.1", 8080, "token-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SessionStatsResponse { WorkItemsCompleted = 5, WorkItemsTotal = 100 });
+
+        var stateStore = new EngineStateStore();
+        var service = new EngineMonitorService(
+            discoveryMock.Object, clientMock.Object, stateStore,
+            DefaultOptions(), NullLogger<EngineMonitorService>.Instance, Mock.Of<ISessionRepository>());
+
+        await service.PollAsync(CancellationToken.None);
+
+        var state = stateStore.GetState("amass-engine-0")!;
+        Assert.Equal(0, state.Sessions[0].ItemsPerSecond);
+        Assert.NotNull(state.Sessions[0].LastPollTimestamp);
+    }
+
+    [Fact]
+    public async Task PollAsync_SubsequentPoll_ComputesItemsPerSecond()
+    {
+        var pods = new List<EnginePodInfo>
+        {
+            new("amass-engine-0", "10.0.0.1", 0, "Running", true)
+        };
+
+        var discoveryMock = new Mock<IKubernetesDiscoveryService>();
+        discoveryMock.Setup(d => d.DiscoverEnginePodsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pods);
+
+        var clientMock = new Mock<IAmassEngineClient>();
+        clientMock.Setup(c => c.HealthCheckAsync("10.0.0.1", 8080, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HealthCheckResponse { Result = "Amass Engine OK" });
+        clientMock.Setup(c => c.ListSessionsAsync("10.0.0.1", 8080, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ListSessionsResponse { SessionTokens = ["token-1"] });
+
+        var stateStore = new EngineStateStore();
+        var service = new EngineMonitorService(
+            discoveryMock.Object, clientMock.Object, stateStore,
+            DefaultOptions(), NullLogger<EngineMonitorService>.Instance, Mock.Of<ISessionRepository>());
+
+        // First poll: 5 items completed
+        clientMock.Setup(c => c.GetSessionStatsAsync("10.0.0.1", 8080, "token-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SessionStatsResponse { WorkItemsCompleted = 5, WorkItemsTotal = 100 });
+
+        await service.PollAsync(CancellationToken.None);
+
+        // Second poll: 15 items completed (delta = 10)
+        clientMock.Setup(c => c.GetSessionStatsAsync("10.0.0.1", 8080, "token-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SessionStatsResponse { WorkItemsCompleted = 15, WorkItemsTotal = 100 });
+
+        await service.PollAsync(CancellationToken.None);
+
+        var state = stateStore.GetState("amass-engine-0")!;
+        // Rate should be > 0 since delta is 10 and some time elapsed
+        Assert.True(state.Sessions[0].ItemsPerSecond > 0);
+        Assert.NotNull(state.Sessions[0].LastPollTimestamp);
+    }
+
+    [Fact]
+    public async Task PollAsync_NoDelta_HasZeroItemsPerSecond()
+    {
+        var pods = new List<EnginePodInfo>
+        {
+            new("amass-engine-0", "10.0.0.1", 0, "Running", true)
+        };
+
+        var discoveryMock = new Mock<IKubernetesDiscoveryService>();
+        discoveryMock.Setup(d => d.DiscoverEnginePodsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pods);
+
+        var clientMock = new Mock<IAmassEngineClient>();
+        clientMock.Setup(c => c.HealthCheckAsync("10.0.0.1", 8080, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new HealthCheckResponse { Result = "Amass Engine OK" });
+        clientMock.Setup(c => c.ListSessionsAsync("10.0.0.1", 8080, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ListSessionsResponse { SessionTokens = ["token-1"] });
+        clientMock.Setup(c => c.GetSessionStatsAsync("10.0.0.1", 8080, "token-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SessionStatsResponse { WorkItemsCompleted = 5, WorkItemsTotal = 100 });
+
+        var stateStore = new EngineStateStore();
+        var service = new EngineMonitorService(
+            discoveryMock.Object, clientMock.Object, stateStore,
+            DefaultOptions(), NullLogger<EngineMonitorService>.Instance, Mock.Of<ISessionRepository>());
+
+        // Two polls with same completed count
+        await service.PollAsync(CancellationToken.None);
+        await service.PollAsync(CancellationToken.None);
+
+        var state = stateStore.GetState("amass-engine-0")!;
+        Assert.Equal(0, state.Sessions[0].ItemsPerSecond);
+    }
+
+    [Fact]
     public async Task PollAsync_HandlesUnhealthyPod()
     {
         var pods = new List<EnginePodInfo>

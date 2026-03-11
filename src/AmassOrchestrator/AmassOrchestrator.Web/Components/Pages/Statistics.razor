@@ -72,6 +72,15 @@ else
     </RadzenRow>
 
     <RadzenRow Gap="1rem" class="rz-mb-4">
+        <RadzenColumn Size="3">
+            <RadzenCard class="rz-text-align-center">
+                <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@(_stats.AverageThroughputPerSecond.ToString("F2"))</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Avg Items/s</RadzenText>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+
+    <RadzenRow Gap="1rem" class="rz-mb-4">
         <RadzenColumn Size="8">
             <RadzenCard>
                 <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Sessions Over Time (Last 30 Days)</RadzenText>
@@ -98,6 +107,20 @@ else
             <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Enumeration Duration (Last 20 Completed)</RadzenText>
             <RadzenChart Style="height: 300px;">
                 <RadzenBarSeries Data="@_stats.DurationPerSession" CategoryProperty="Token" ValueProperty="DurationMinutes" Title="Minutes" />
+                <RadzenCategoryAxis />
+                <RadzenValueAxis>
+                    <RadzenGridLines Visible="true" />
+                </RadzenValueAxis>
+            </RadzenChart>
+        </RadzenCard>
+    }
+
+    @if (_stats.ThroughputPerSession.Any())
+    {
+        <RadzenCard class="rz-mb-4">
+            <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Throughput Per Session (Last 20 Completed)</RadzenText>
+            <RadzenChart Style="height: 300px;">
+                <RadzenBarSeries Data="@_stats.ThroughputPerSession" CategoryProperty="Token" ValueProperty="ItemsPerSecond" Title="Items/s" />
                 <RadzenCategoryAxis />
                 <RadzenValueAxis>
                     <RadzenGridLines Visible="true" />
@@ -213,6 +236,25 @@ else
                 WorkItems = s.WorkItemsCompleted
             })
             .ToList();
+
+        // Throughput per session (last 20 completed)
+        var completedWithThroughput = completed
+            .Where(s => s.CompletedAtUtc.HasValue && (s.CompletedAtUtc.Value - s.CreatedAtUtc).TotalSeconds > 0 && s.WorkItemsCompleted > 0)
+            .ToList();
+
+        _stats.ThroughputPerSession = completedWithThroughput
+            .OrderByDescending(s => s.CreatedAtUtc)
+            .Take(20)
+            .OrderBy(s => s.CreatedAtUtc)
+            .Select(s => new ThroughputPerSessionEntry
+            {
+                Token = ShortToken(s.Token),
+                ItemsPerSecond = Math.Round(s.WorkItemsCompleted / (s.CompletedAtUtc!.Value - s.CreatedAtUtc).TotalSeconds, 2)
+            })
+            .ToList();
+
+        if (_stats.ThroughputPerSession.Count > 0)
+            _stats.AverageThroughputPerSecond = Math.Round(_stats.ThroughputPerSession.Average(t => t.ItemsPerSecond), 2);
 
         // Engine distribution
         _stats.EngineDistribution = sessions
