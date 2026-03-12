@@ -143,7 +143,7 @@ else
         {
             var config = dialogResult.Config;
             var enumResult = await EnumerationService.StartEnumerationOnEngineAsync(
-                Uri.UnescapeDataString(PodName), config);
+                Uri.UnescapeDataString(PodName), config, dialogResult.Assets, dialogResult.SubmitDomainsAsFqdnAssets);
 
             if (enumResult.Success)
             {
@@ -169,8 +169,8 @@ else
         {
             var config = dialogResult.Config;
             var enumResult = dialogResult.UseSameEngine && !string.IsNullOrEmpty(dialogResult.TargetEnginePodName)
-                ? await EnumerationService.StartEnumerationOnEngineAsync(dialogResult.TargetEnginePodName, config)
-                : await EnumerationService.StartEnumerationAsync(config);
+                ? await EnumerationService.StartEnumerationOnEngineAsync(dialogResult.TargetEnginePodName, config, dialogResult.Assets, dialogResult.SubmitDomainsAsFqdnAssets)
+                : await EnumerationService.StartEnumerationAsync(config, dialogResult.Assets, dialogResult.SubmitDomainsAsFqdnAssets);
 
             if (enumResult.Success)
             {

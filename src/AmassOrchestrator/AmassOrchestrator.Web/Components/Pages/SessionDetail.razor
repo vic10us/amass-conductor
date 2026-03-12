@@ -313,8 +313,8 @@ else
         {
             var newConfig = dialogResult.Config;
             var enumResult = dialogResult.UseSameEngine && !string.IsNullOrEmpty(dialogResult.TargetEnginePodName)
-                ? await EnumerationService.StartEnumerationOnEngineAsync(dialogResult.TargetEnginePodName, newConfig)
-                : await EnumerationService.StartEnumerationAsync(newConfig);
+                ? await EnumerationService.StartEnumerationOnEngineAsync(dialogResult.TargetEnginePodName, newConfig, dialogResult.Assets, dialogResult.SubmitDomainsAsFqdnAssets)
+                : await EnumerationService.StartEnumerationAsync(newConfig, dialogResult.Assets, dialogResult.SubmitDomainsAsFqdnAssets);
 
             if (enumResult.Success)
             {
@@ -349,6 +349,22 @@ else
     private static string MaskSecret(string? value)
         => string.IsNullOrEmpty(value) ? "—" : value.Length <= 4 ? "****" : value[..2] + new string('*', value.Length - 4) + value[^2..];
 
+    private static string FormatCidr(IpNet net)
+    {
+        if (net.Ip == null || net.Mask == null) return string.Empty;
+        var addr = new System.Net.IPAddress(net.Ip);
+        int prefix = 0;
+        foreach (var b in net.Mask)
+        {
+            for (int i = 7; i >= 0; i--)
+            {
+                if ((b & (1 << i)) != 0) prefix++;
+                else break;
+            }
+        }
+        return $"{addr}/{prefix}";
+    }
+
     private RenderFragment ConfigurationContent => __builder =>
     {
         <RadzenStack Gap="1.5rem">
@@ -361,6 +377,76 @@ else
                         @foreach (var d in domains)
                         {
                             <RadzenBadge Text="@d" BadgeStyle="BadgeStyle.Primary" />
+                        }
+                    </RadzenStack>
+                </RadzenCard>
+            }
+
+            @* ── ASNs ── *@
+            @if (_config!.Scope?.Asns is { Count: > 0 } asns)
+            {
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">ASNs</RadzenText>
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                        @foreach (var asn in asns)
+                        {
+                            <RadzenBadge Text="@asn.ToString()" BadgeStyle="BadgeStyle.Info" />
+                        }
+                    </RadzenStack>
+                </RadzenCard>
+            }
+
+            @* ── CIDRs ── *@
+            @if (_config.Scope?.Cidrs is { Count: > 0 } cidrs)
+            {
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">CIDRs</RadzenText>
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                        @foreach (var cidr in cidrs)
+                        {
+                            <RadzenBadge Text="@FormatCidr(cidr)" BadgeStyle="BadgeStyle.Info" />
+                        }
+                    </RadzenStack>
+                </RadzenCard>
+            }
+
+            @* ── IPs ── *@
+            @if (_config.Scope?.Ips is { Count: > 0 } ips)
+            {
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">IPs</RadzenText>
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                        @foreach (var ip in ips)
+                        {
+                            <RadzenBadge Text="@(new System.Net.IPAddress(ip).ToString())" BadgeStyle="BadgeStyle.Info" />
+                        }
+                    </RadzenStack>
+                </RadzenCard>
+            }
+
+            @* ── Ports ── *@
+            @if (_config.Scope?.Ports is { Count: > 0 } ports)
+            {
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Ports</RadzenText>
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                        @foreach (var port in ports)
+                        {
+                            <RadzenBadge Text="@port.ToString()" BadgeStyle="BadgeStyle.Light" />
+                        }
+                    </RadzenStack>
+                </RadzenCard>
+            }
+
+            @* ── Blacklist ── *@
+            @if (_config.Scope?.Blacklist is { Count: > 0 } blacklist)
+            {
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Blacklist</RadzenText>
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                        @foreach (var item in blacklist)
+                        {
+                            <RadzenBadge Text="@item" BadgeStyle="BadgeStyle.Danger" />
                         }
                     </RadzenStack>
                 </RadzenCard>

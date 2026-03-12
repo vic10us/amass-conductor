@@ -11,7 +11,52 @@
         <RadzenTabsItem Text="Scope">
             <RadzenStack Gap="1rem" class="rz-p-2">
                 <RadzenFormField Text="Domains (comma or newline separated)">
-                    <RadzenTextArea @bind-Value="@_domains" Rows="6" Style="width: 100%;" />
+                    <RadzenTextArea @bind-Value="@_domains" Rows="4" Style="width: 100%;" />
+                </RadzenFormField>
+                <RadzenFormField Text="ASNs (comma or newline separated, e.g. 13335)">
+                    <RadzenTextArea @bind-Value="@_asns" Rows="2" Style="width: 100%;" />
+                </RadzenFormField>
+                <RadzenFormField Text="CIDRs (comma or newline separated, e.g. 192.0.2.0/24)">
+                    <RadzenTextArea @bind-Value="@_cidrs" Rows="2" Style="width: 100%;" />
+                </RadzenFormField>
+                <RadzenFormField Text="IPs (comma or newline separated)">
+                    <RadzenTextArea @bind-Value="@_ips" Rows="2" Style="width: 100%;" />
+                </RadzenFormField>
+                <RadzenFormField Text="Ports (comma or newline separated)">
+                    <RadzenTextArea @bind-Value="@_ports" Rows="2" Style="width: 100%;" />
+                </RadzenFormField>
+                <RadzenFormField Text="Blacklist (comma or newline separated)">
+                    <RadzenTextArea @bind-Value="@_blacklist" Rows="2" Style="width: 100%;" />
+                </RadzenFormField>
+            </RadzenStack>
+        </RadzenTabsItem>
+
+        <RadzenTabsItem Text="Assets">
+            <RadzenStack Gap="1rem" class="rz-p-2">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                    <RadzenCheckBox @bind-Value="@_submitDomainsAsFqdnAssets" Name="submitDomainsAsFqdnAssets" />
+                    <RadzenLabel Text="Also submit scope domains as FQDN assets" Component="submitDomainsAsFqdnAssets" />
+                </RadzenStack>
+                <RadzenText TextStyle="TextStyle.Caption">
+                    When checked, scope domains are automatically added as FQDN seed assets for enumeration.
+                </RadzenText>
+                <RadzenFormField Text="FQDNs (comma or newline separated)">
+                    <RadzenTextArea @bind-Value="@_assetFqdns" Rows="3" Style="width: 100%;" />
+                </RadzenFormField>
+                <RadzenFormField Text="IP Addresses (comma or newline separated)">
+                    <RadzenTextArea @bind-Value="@_assetIpAddresses" Rows="3" Style="width: 100%;" />
+                </RadzenFormField>
+                <RadzenFormField Text="ASNs (comma or newline separated, e.g. 13335)">
+                    <RadzenTextArea @bind-Value="@_assetAsns" Rows="2" Style="width: 100%;" />
+                </RadzenFormField>
+                <RadzenFormField Text="Netblocks (comma or newline separated, e.g. 192.0.2.0/24)">
+                    <RadzenTextArea @bind-Value="@_assetNetblocks" Rows="2" Style="width: 100%;" />
+                </RadzenFormField>
+                <RadzenFormField Text="Organizations (comma or newline separated)">
+                    <RadzenTextArea @bind-Value="@_assetOrganizations" Rows="2" Style="width: 100%;" />
+                </RadzenFormField>
+                <RadzenFormField Text="Locations (comma or newline separated)">
+                    <RadzenTextArea @bind-Value="@_assetLocations" Rows="2" Style="width: 100%;" />
                 </RadzenFormField>
             </RadzenStack>
         </RadzenTabsItem>
@@ -192,6 +237,11 @@
     [Parameter] public bool ShowEngineChoice { get; set; }
 
     private string _domains = string.Empty;
+    private string _asns = string.Empty;
+    private string _cidrs = string.Empty;
+    private string _ips = string.Empty;
+    private string _ports = "80, 443, 8000, 8080, 8443, 8888";
+    private string _blacklist = string.Empty;
     private bool _active;
     private bool _bruteForce;
     private bool _alterations;
@@ -214,6 +264,13 @@
     private List<TransformationRow> _transformations = [];
     private List<string> _supportedDbSystems = [];
     private bool _useSameEngine;
+    private bool _submitDomainsAsFqdnAssets = true;
+    private string _assetFqdns = string.Empty;
+    private string _assetIpAddresses = string.Empty;
+    private string _assetAsns = string.Empty;
+    private string _assetNetblocks = string.Empty;
+    private string _assetOrganizations = string.Empty;
+    private string _assetLocations = string.Empty;
 
     protected override void OnInitialized()
     {
@@ -229,6 +286,15 @@
     private void PopulateFromConfig(AmassConfig config)
     {
         _domains = config.Scope?.Domains != null ? string.Join("\n", config.Scope.Domains) : string.Empty;
+        _asns = config.Scope?.Asns != null ? string.Join("\n", config.Scope.Asns) : string.Empty;
+        _cidrs = config.Scope?.Cidrs != null
+            ? string.Join("\n", config.Scope.Cidrs.Select(FormatCidr))
+            : string.Empty;
+        _ips = config.Scope?.Ips != null
+            ? string.Join("\n", config.Scope.Ips.Select(b => new System.Net.IPAddress(b).ToString()))
+            : string.Empty;
+        _ports = config.Scope?.Ports != null ? string.Join(", ", config.Scope.Ports) : "80, 443, 8000, 8080, 8443, 8888";
+        _blacklist = config.Scope?.Blacklist != null ? string.Join("\n", config.Scope.Blacklist) : string.Empty;
         _active = config.Active == true;
         _bruteForce = config.BruteForce == true;
         _alterations = config.Alterations == true;
@@ -306,13 +372,20 @@
         _validationError = null;
         _datasourceError = null;
 
-        var domains = _domains
-            .Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToList();
-
-        if (domains.Count == 0)
+        var domains = ParseStringList(_domains);
+        var assetObj = new SeedAssets
         {
-            _validationError = "At least one domain is required.";
+            Fqdns = ParseStringList(_assetFqdns),
+            IpAddresses = ParseStringList(_assetIpAddresses),
+            AutonomousSystems = ParseIntList(_assetAsns),
+            Netblocks = ParseStringList(_assetNetblocks),
+            Organizations = ParseStringList(_assetOrganizations),
+            Locations = ParseStringList(_assetLocations)
+        };
+
+        if (domains.Count == 0 && !assetObj.HasAny())
+        {
+            _validationError = "At least one domain or seed asset is required.";
             return;
         }
 
@@ -335,7 +408,15 @@
 
         var config = new AmassConfig
         {
-            Scope = new AmassScope { Domains = domains },
+            Scope = new AmassScope
+            {
+                Domains = domains.Count > 0 ? domains : null,
+                Asns = ParseIntList(_asns) is { Count: > 0 } scopeAsns ? scopeAsns : null,
+                Cidrs = ParseCidrList(_cidrs) is { Count: > 0 } scopeCidrs ? scopeCidrs : null,
+                Ips = ParseIpList(_ips) is { Count: > 0 } scopeIps ? scopeIps : null,
+                Ports = ParseIntList(_ports) is { Count: > 0 } scopePorts ? scopePorts : null,
+                Blacklist = ParseStringList(_blacklist) is { Count: > 0 } bl ? bl : null
+            },
             Active = _active ? true : null,
             RigidBoundaries = _rigidBoundaries ? true : null,
             BruteForce = _bruteForce ? true : null,
@@ -372,6 +453,8 @@
         var dialogResult = new CreateSessionDialogResult
         {
             Config = config,
+            Assets = assetObj,
+            SubmitDomainsAsFqdnAssets = _submitDomainsAsFqdnAssets,
             UseSameEngine = _useSameEngine && !string.IsNullOrEmpty(OriginalEnginePodName),
             TargetEnginePodName = _useSameEngine ? OriginalEnginePodName : null
         };
@@ -427,4 +510,52 @@
 
     private static List<string> ParseWordlist(string text) =>
         text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+    private static List<string> ParseStringList(string text) =>
+        text.Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+    private static List<int> ParseIntList(string text) =>
+        text.Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(s => int.TryParse(s, out var v) ? v : (int?)null)
+            .Where(v => v.HasValue)
+            .Select(v => v!.Value)
+            .ToList();
+
+    private static List<IpNet> ParseCidrList(string text) =>
+        ParseStringList(text)
+            .Select(cidr =>
+            {
+                var parts = cidr.Split('/');
+                if (parts.Length != 2 || !System.Net.IPAddress.TryParse(parts[0], out var addr) || !int.TryParse(parts[1], out var prefix))
+                    return null;
+                var ipBytes = addr.GetAddressBytes();
+                var maskBytes = new byte[ipBytes.Length];
+                for (int i = 0; i < prefix; i++)
+                    maskBytes[i / 8] |= (byte)(0x80 >> (i % 8));
+                return new IpNet { Ip = ipBytes, Mask = maskBytes };
+            })
+            .Where(n => n != null)
+            .ToList()!;
+
+    private static List<byte[]> ParseIpList(string text) =>
+        ParseStringList(text)
+            .Select(s => System.Net.IPAddress.TryParse(s, out var addr) ? addr.GetAddressBytes() : null)
+            .Where(b => b != null)
+            .ToList()!;
+
+    private static string FormatCidr(IpNet net)
+    {
+        if (net.Ip == null || net.Mask == null) return string.Empty;
+        var addr = new System.Net.IPAddress(net.Ip);
+        int prefix = 0;
+        foreach (var b in net.Mask)
+        {
+            for (int i = 7; i >= 0; i--)
+            {
+                if ((b & (1 << i)) != 0) prefix++;
+                else break;
+            }
+        }
+        return $"{addr}/{prefix}";
+    }
 }
