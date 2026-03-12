@@ -483,7 +483,7 @@
     private static string ShortToken(string token) => token.Length > 8 ? token[..8] + "..." : token;
 
     private string SessionPath(SessionViewModel session) =>
-        $"engine/{Uri.EscapeDataString(session.EnginePodName)}/session/{session.Token}";
+        $"session/{session.Token}";
 
     private static string FormatDomains(string? domainsJson)
     {

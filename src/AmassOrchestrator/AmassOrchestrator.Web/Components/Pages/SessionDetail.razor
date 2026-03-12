@@ -1,5 +1,5 @@
-@page "/engine/{PodName}/session/{SessionToken}"
-@page "/engine/{PodName}/session/{SessionToken}/{Tab?}"
+@page "/session/{SessionToken}"
+@page "/session/{SessionToken}/{Tab?}"
 @implements IDisposable
 @inject EngineStateStore StateStore
 @inject IOptions<AmassOrchestrator.Web.Configuration.OrchestratorOptions> Options
@@ -17,7 +17,7 @@
 
 <RadzenBreadCrumb>
     <RadzenBreadCrumbItem Text="Dashboard" Path="" />
-    <RadzenBreadCrumbItem Text="@PodName" Path="@($"engine/{Uri.EscapeDataString(PodName)}")" />
+    <RadzenBreadCrumbItem Text="@_podName" Path="@($"engine/{Uri.EscapeDataString(_podName)}")" />
     <RadzenBreadCrumbItem Text="@ShortToken" />
 </RadzenBreadCrumb>
 
@@ -33,7 +33,7 @@ else if (_state != null && _session != null)
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" class="rz-mt-4 rz-mb-4">
         <RadzenText TextStyle="TextStyle.H4" class="rz-m-0">Session @ShortToken</RadzenText>
         <SessionControls PodIp="@_state.Pod.PodIP" Port="@Options.Value.EnginePort" SessionToken="@SessionToken"
-                         OnSessionStopped="@(() => Navigation.NavigateTo($"engine/{Uri.EscapeDataString(PodName)}"))" />
+                         OnSessionStopped="@(() => Navigation.NavigateTo($"engine/{Uri.EscapeDataString(_podName)}"))" />
     </RadzenStack>
 
     <RadzenText TextStyle="TextStyle.Body1" class="rz-mb-4">
@@ -134,7 +134,6 @@ else
 }
 
 @code {
-    [Parameter] public string PodName { get; set; } = string.Empty;
     [Parameter] public string SessionToken { get; set; } = string.Empty;
     [Parameter] public string? Tab { get; set; }
 
@@ -142,6 +141,7 @@ else
 
     private bool _isLiveView => _state != null && _session != null;
 
+    private string _podName = string.Empty;
     private EngineInstanceState? _state;
     private SessionInfo? _session;
     private SessionRecord? _dbRecord;
@@ -177,7 +177,7 @@ else
     private void OnTabChanged(int index)
     {
         var tabName = IndexToTabName(index);
-        Navigation.NavigateTo($"engine/{Uri.EscapeDataString(PodName)}/session/{SessionToken}/{tabName}", replace: true);
+        Navigation.NavigateTo($"session/{SessionToken}/{tabName}", replace: true);
     }
 
     protected override void OnInitialized()
@@ -220,6 +220,7 @@ else
         {
             // Session not in live state — load DB record first for page structure
             _dbRecord = await SessionRepository.GetByTokenAsync(SessionToken);
+            _podName = _dbRecord?.EnginePodName ?? string.Empty;
             _isLoading = false;
             StateHasChanged();
 
@@ -274,8 +275,20 @@ else
 
     private void RefreshState()
     {
-        _state = StateStore.GetState(Uri.UnescapeDataString(PodName));
-        _session = _state?.Sessions.FirstOrDefault(s => s.Token == SessionToken);
+        foreach (var kvp in StateStore.States)
+        {
+            var match = kvp.Value.Sessions.FirstOrDefault(s => s.Token == SessionToken);
+            if (match != null)
+            {
+                _state = kvp.Value;
+                _session = match;
+                _podName = _state.Pod.PodName;
+                return;
+            }
+        }
+        _state = null;
+        _session = null;
+        _podName = _dbRecord?.EnginePodName ?? string.Empty;
     }
 
     private async void HandleStateChanged()

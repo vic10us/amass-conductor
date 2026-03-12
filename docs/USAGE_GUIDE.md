@@ -135,7 +135,7 @@ The sessions page shows all sessions (active and historical) in a filterable dat
 - **Delete Selected** — remove selected completed/failed/cancelled sessions
 - **Restart Selected** — re-create selected sessions with their saved configurations
 
-### Session Detail (`/engine/{PodName}/session/{SessionToken}`)
+### Session Detail (`/session/{SessionToken}`)
 
 Detailed view of a single session with 4 tabs.
 

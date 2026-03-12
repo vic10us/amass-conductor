@@ -97,7 +97,7 @@ else
             <Columns>
                 <RadzenDataGridColumn TItem="SessionInfo" Title="Token" Width="320px">
                     <Template Context="session">
-                        <RadzenLink Path="@($"engine/{Uri.EscapeDataString(PodName)}/session/{session.Token}")" Text="@session.Token" />
+                        <RadzenLink Path="@($"session/{session.Token}")" Text="@session.Token" />
                     </Template>
                 </RadzenDataGridColumn>
                 <RadzenDataGridColumn TItem="SessionInfo" Title="Progress">
