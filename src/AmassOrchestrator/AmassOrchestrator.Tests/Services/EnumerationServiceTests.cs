@@ -169,4 +169,70 @@ public class EnumerationServiceTests
         Assert.True(result.Success);
         Assert.Equal("token-ok", result.SessionToken);
     }
+
+    [Fact]
+    public async Task StartEnumeration_MultiAssetTypes_SubmitsBulkForEachType()
+    {
+        _stateStore.UpdateState("engine-0", MakeEngine("engine-0", 0));
+
+        _engineClient.Setup(c => c.CreateSessionAsync("10.0.0.0", 8080, It.IsAny<AmassConfig>(), default))
+            .ReturnsAsync(new CreateSessionResponse { SessionToken = "token-multi" });
+        _engineClient.Setup(c => c.BulkAddAssetsAsync("10.0.0.0", 8080, "token-multi", It.IsAny<string>(), It.IsAny<BulkAddAssetsRequest>(), default))
+            .ReturnsAsync(new BulkAddAssetsResponse { Ingested = 1 });
+
+        var assets = new SeedAssets
+        {
+            Fqdns = ["sub.example.com"],
+            IpAddresses = ["10.0.0.1"],
+            AutonomousSystems = [13335],
+            Netblocks = ["192.0.2.0/24"],
+            Organizations = ["ExampleOrg"],
+            Locations = ["New York"]
+        };
+
+        var result = await _sut.StartEnumerationAsync(MakeConfig("example.com"), assets);
+
+        Assert.True(result.Success);
+        // FQDN (merged domains + explicit), ipaddress, autonomoussystem, netblock, organization, location
+        _engineClient.Verify(c => c.BulkAddAssetsAsync("10.0.0.0", 8080, "token-multi", "fqdn", It.IsAny<BulkAddAssetsRequest>(), default), Times.Once);
+        _engineClient.Verify(c => c.BulkAddAssetsAsync("10.0.0.0", 8080, "token-multi", "ipaddress", It.IsAny<BulkAddAssetsRequest>(), default), Times.Once);
+        _engineClient.Verify(c => c.BulkAddAssetsAsync("10.0.0.0", 8080, "token-multi", "autonomoussystem", It.IsAny<BulkAddAssetsRequest>(), default), Times.Once);
+        _engineClient.Verify(c => c.BulkAddAssetsAsync("10.0.0.0", 8080, "token-multi", "netblock", It.IsAny<BulkAddAssetsRequest>(), default), Times.Once);
+        _engineClient.Verify(c => c.BulkAddAssetsAsync("10.0.0.0", 8080, "token-multi", "organization", It.IsAny<BulkAddAssetsRequest>(), default), Times.Once);
+        _engineClient.Verify(c => c.BulkAddAssetsAsync("10.0.0.0", 8080, "token-multi", "location", It.IsAny<BulkAddAssetsRequest>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task StartEnumeration_ToggleOff_SkipsDomainAsFqdnSubmission()
+    {
+        _stateStore.UpdateState("engine-0", MakeEngine("engine-0", 0));
+
+        _engineClient.Setup(c => c.CreateSessionAsync("10.0.0.0", 8080, It.IsAny<AmassConfig>(), default))
+            .ReturnsAsync(new CreateSessionResponse { SessionToken = "token-nodom" });
+
+        var result = await _sut.StartEnumerationAsync(MakeConfig("example.com"), submitDomainsAsFqdns: false);
+
+        Assert.True(result.Success);
+        // No FQDN bulk call should be made (no explicit assets, toggle off)
+        _engineClient.Verify(c => c.BulkAddAssetsAsync("10.0.0.0", 8080, "token-nodom", "fqdn", It.IsAny<BulkAddAssetsRequest>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task StartEnumeration_ToggleOff_WithExplicitFqdns_SubmitsOnlyExplicitFqdns()
+    {
+        _stateStore.UpdateState("engine-0", MakeEngine("engine-0", 0));
+
+        _engineClient.Setup(c => c.CreateSessionAsync("10.0.0.0", 8080, It.IsAny<AmassConfig>(), default))
+            .ReturnsAsync(new CreateSessionResponse { SessionToken = "token-explicit" });
+        _engineClient.Setup(c => c.BulkAddAssetsAsync("10.0.0.0", 8080, "token-explicit", "fqdn", It.IsAny<BulkAddAssetsRequest>(), default))
+            .ReturnsAsync(new BulkAddAssetsResponse { Ingested = 1 });
+
+        var assets = new SeedAssets { Fqdns = ["specific.example.com"] };
+
+        var result = await _sut.StartEnumerationAsync(MakeConfig("example.com"), assets, submitDomainsAsFqdns: false);
+
+        Assert.True(result.Success);
+        // Only the explicit FQDN should be submitted, not the domain
+        _engineClient.Verify(c => c.BulkAddAssetsAsync("10.0.0.0", 8080, "token-explicit", "fqdn", It.IsAny<BulkAddAssetsRequest>(), default), Times.Once);
+    }
 }

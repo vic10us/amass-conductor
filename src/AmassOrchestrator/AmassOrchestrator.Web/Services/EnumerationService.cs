@@ -13,7 +13,7 @@ public class EnumerationService(
     ILogger<EnumerationService> logger,
     ISessionRepository sessionRepository) : IEnumerationService
 {
-    public async Task<EnumerationResult> StartEnumerationAsync(AmassConfig config)
+    public async Task<EnumerationResult> StartEnumerationAsync(AmassConfig config, SeedAssets? assets = null, bool submitDomainsAsFqdns = true)
     {
         var maxActive = options.Value.MaxActiveSessionsPerEngine;
 
@@ -31,10 +31,10 @@ public class EnumerationService(
             return EnumerationResult.Fail("No free engine available. All engines are busy or unhealthy.");
         }
 
-        return await RunEnumerationAsync(candidate, config);
+        return await RunEnumerationAsync(candidate, config, assets, submitDomainsAsFqdns);
     }
 
-    public async Task<EnumerationResult> StartEnumerationOnEngineAsync(string podName, AmassConfig config)
+    public async Task<EnumerationResult> StartEnumerationOnEngineAsync(string podName, AmassConfig config, SeedAssets? assets = null, bool submitDomainsAsFqdns = true)
     {
         var state = stateStore.GetState(podName);
         if (state is null)
@@ -43,10 +43,10 @@ public class EnumerationService(
             return EnumerationResult.Fail($"Engine '{podName}' not found.");
         }
 
-        return await RunEnumerationAsync(state, config);
+        return await RunEnumerationAsync(state, config, assets, submitDomainsAsFqdns);
     }
 
-    private async Task<EnumerationResult> RunEnumerationAsync(EngineInstanceState engine, AmassConfig config)
+    private async Task<EnumerationResult> RunEnumerationAsync(EngineInstanceState engine, AmassConfig config, SeedAssets? assets, bool submitDomainsAsFqdns)
     {
         var port = options.Value.EnginePort;
         var podIp = engine.Pod.PodIP;
@@ -62,25 +62,7 @@ public class EnumerationService(
         var sessionToken = sessionResponse.SessionToken;
         var domains = config.Scope?.Domains ?? [];
 
-        // Submit FQDN assets — failure is non-fatal since the session already exists
-        try
-        {
-            var items = domains
-                .Select(d => (object)new { name = d })
-                .ToList();
-
-            var bulkRequest = new BulkAddAssetsRequest { Items = items };
-            var bulkResponse = await engineClient.BulkAddAssetsAsync(podIp, port, sessionToken, "fqdn", bulkRequest);
-
-            if (bulkResponse is null)
-            {
-                logger.LogWarning("Asset submission returned null for session {Token} on {PodName}, but session exists", sessionToken, podName);
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Asset submission failed for session {Token} on {PodName}, but session exists", sessionToken, podName);
-        }
+        await SubmitSeedAssetsAsync(podIp, port, podName, sessionToken, domains, assets, submitDomainsAsFqdns);
 
         logger.LogInformation("Enumeration started on {PodName} with session {Token} for domains: {Domains}",
             podName, sessionToken, string.Join(", ", domains));
@@ -96,5 +78,92 @@ public class EnumerationService(
         }
 
         return EnumerationResult.Ok(sessionToken, podName);
+    }
+
+    private async Task SubmitSeedAssetsAsync(string podIp, int port, string podName, string sessionToken,
+        List<string> domains, SeedAssets? assets, bool submitDomainsAsFqdns)
+    {
+        // FQDNs: merge scope domains (when toggle is on) with explicit FQDN assets
+        var fqdns = new List<string>();
+        if (submitDomainsAsFqdns)
+            fqdns.AddRange(domains);
+        if (assets?.Fqdns.Count > 0)
+            fqdns.AddRange(assets.Fqdns);
+
+        var dedupedFqdns = fqdns.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (dedupedFqdns.Count > 0)
+        {
+            var items = dedupedFqdns.Select(d => (object)new { name = d }).ToList();
+            await SubmitBulkAsync(podIp, port, podName, sessionToken, "fqdn", items);
+        }
+
+        if (assets is null)
+            return;
+
+        // IP Addresses
+        if (assets.IpAddresses.Count > 0)
+        {
+            var items = assets.IpAddresses
+                .Select(ip => (object)new { address = ip, type = ip.Contains(':') ? "IPv6" : "IPv4" })
+                .ToList();
+            await SubmitBulkAsync(podIp, port, podName, sessionToken, "ipaddress", items);
+        }
+
+        // Autonomous Systems
+        if (assets.AutonomousSystems.Count > 0)
+        {
+            var items = assets.AutonomousSystems
+                .Select(asn => (object)new { number = asn })
+                .ToList();
+            await SubmitBulkAsync(podIp, port, podName, sessionToken, "autonomoussystem", items);
+        }
+
+        // Netblocks
+        if (assets.Netblocks.Count > 0)
+        {
+            var items = assets.Netblocks
+                .Select(nb => (object)new { cidr = nb, type = nb.Contains(':') ? "IPv6" : "IPv4" })
+                .ToList();
+            await SubmitBulkAsync(podIp, port, podName, sessionToken, "netblock", items);
+        }
+
+        // Organizations
+        if (assets.Organizations.Count > 0)
+        {
+            var items = assets.Organizations
+                .Select(org => (object)new { name = org })
+                .ToList();
+            await SubmitBulkAsync(podIp, port, podName, sessionToken, "organization", items);
+        }
+
+        // Locations
+        if (assets.Locations.Count > 0)
+        {
+            var items = assets.Locations
+                .Select(loc => (object)new { address = loc })
+                .ToList();
+            await SubmitBulkAsync(podIp, port, podName, sessionToken, "location", items);
+        }
+    }
+
+    private async Task SubmitBulkAsync(string podIp, int port, string podName, string sessionToken,
+        string assetType, List<object> items)
+    {
+        try
+        {
+            var bulkRequest = new BulkAddAssetsRequest { Items = items };
+            var bulkResponse = await engineClient.BulkAddAssetsAsync(podIp, port, sessionToken, assetType, bulkRequest);
+
+            if (bulkResponse is null)
+            {
+                logger.LogWarning("{AssetType} submission returned null for session {Token} on {PodName}, but session exists",
+                    assetType, sessionToken, podName);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "{AssetType} submission failed for session {Token} on {PodName}, but session exists",
+                assetType, sessionToken, podName);
+        }
     }
 }
