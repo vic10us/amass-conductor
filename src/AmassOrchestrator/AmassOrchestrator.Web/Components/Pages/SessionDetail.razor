@@ -17,7 +17,14 @@
 
 <RadzenBreadCrumb>
     <RadzenBreadCrumbItem Text="Dashboard" Path="" />
-    <RadzenBreadCrumbItem Text="@_podName" Path="@($"engine/{Uri.EscapeDataString(_podName)}")" />
+    @if (_session != null)
+    {
+        <RadzenBreadCrumbItem Text="@_podName" Path="@($"engine/{Uri.EscapeDataString(_podName)}")" />
+    }
+    else
+    {
+        <RadzenBreadCrumbItem Text="Sessions" Path="sessions" />
+    }
     <RadzenBreadCrumbItem Text="@ShortToken" />
 </RadzenBreadCrumb>
 
