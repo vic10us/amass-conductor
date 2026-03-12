@@ -199,6 +199,7 @@ else
     private SessionRecord? _dbRecord;
     private List<string> _historicalLogs = [];
     private AmassConfig? _config;
+    private SeedAssets? _assets;
 
     private static readonly string[] _assetTypes = ["fqdn", "ipaddress", "autonomoussystem", "netblock", "location", "organization"];
 
@@ -238,7 +239,9 @@ else
         {
             try
             {
-                _config = JsonSerializer.Deserialize<AmassConfig>(json);
+                var data = PersistedSessionData.Deserialize(json);
+                _config = data.Config;
+                _assets = data.Assets;
             }
             catch
             {
@@ -290,7 +293,8 @@ else
             return;
         }
 
-        var config = JsonSerializer.Deserialize<AmassConfig>(configJson);
+        var data = PersistedSessionData.Deserialize(configJson);
+        var config = data.Config;
         if (config == null)
         {
             NotificationService.Notify(NotificationSeverity.Warning, "Invalid config", "Cannot retry — configuration could not be parsed.");
@@ -529,6 +533,88 @@ else
                             <RadzenDataGridColumn Property="Ttl" Title="TTL" Width="100px" />
                         </Columns>
                     </RadzenDataGrid>
+                </RadzenCard>
+            }
+
+            @* ── Seed Assets ── *@
+            @if (_assets?.HasAny() == true)
+            {
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Seed Assets</RadzenText>
+                    <RadzenStack Gap="0.75rem">
+                        @if (_assets.Fqdns is { Count: > 0 })
+                        {
+                            <div>
+                                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">FQDNs</RadzenText>
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                                    @foreach (var fqdn in _assets.Fqdns)
+                                    {
+                                        <RadzenBadge Text="@fqdn" BadgeStyle="BadgeStyle.Primary" />
+                                    }
+                                </RadzenStack>
+                            </div>
+                        }
+                        @if (_assets.IpAddresses is { Count: > 0 })
+                        {
+                            <div>
+                                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">IP Addresses</RadzenText>
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                                    @foreach (var ip in _assets.IpAddresses)
+                                    {
+                                        <RadzenBadge Text="@ip" BadgeStyle="BadgeStyle.Info" />
+                                    }
+                                </RadzenStack>
+                            </div>
+                        }
+                        @if (_assets.AutonomousSystems is { Count: > 0 })
+                        {
+                            <div>
+                                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Autonomous Systems</RadzenText>
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                                    @foreach (var asn in _assets.AutonomousSystems)
+                                    {
+                                        <RadzenBadge Text="@($"AS{asn}")" BadgeStyle="BadgeStyle.Info" />
+                                    }
+                                </RadzenStack>
+                            </div>
+                        }
+                        @if (_assets.Netblocks is { Count: > 0 })
+                        {
+                            <div>
+                                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Netblocks</RadzenText>
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                                    @foreach (var nb in _assets.Netblocks)
+                                    {
+                                        <RadzenBadge Text="@nb" BadgeStyle="BadgeStyle.Info" />
+                                    }
+                                </RadzenStack>
+                            </div>
+                        }
+                        @if (_assets.Organizations is { Count: > 0 })
+                        {
+                            <div>
+                                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Organizations</RadzenText>
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                                    @foreach (var org in _assets.Organizations)
+                                    {
+                                        <RadzenBadge Text="@org" BadgeStyle="BadgeStyle.Secondary" />
+                                    }
+                                </RadzenStack>
+                            </div>
+                        }
+                        @if (_assets.Locations is { Count: > 0 })
+                        {
+                            <div>
+                                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Locations</RadzenText>
+                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                                    @foreach (var loc in _assets.Locations)
+                                    {
+                                        <RadzenBadge Text="@loc" BadgeStyle="BadgeStyle.Secondary" />
+                                    }
+                                </RadzenStack>
+                            </div>
+                        }
+                    </RadzenStack>
                 </RadzenCard>
             }
         </RadzenStack>

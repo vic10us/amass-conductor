@@ -69,7 +69,13 @@ public class EnumerationService(
 
         try
         {
-            var configJson = JsonSerializer.Serialize(config);
+            var persistedData = new PersistedSessionData
+            {
+                Config = config,
+                Assets = assets,
+                SubmitDomainsAsFqdns = submitDomainsAsFqdns
+            };
+            var configJson = persistedData.Serialize();
             await sessionRepository.CreateAsync(podName, sessionToken, domains, configJson);
         }
         catch (Exception ex)
