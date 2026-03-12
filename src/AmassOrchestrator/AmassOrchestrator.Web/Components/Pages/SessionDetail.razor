@@ -20,7 +20,13 @@
     <RadzenBreadCrumbItem Text="@ShortToken" />
 </RadzenBreadCrumb>
 
-@if (_state != null && _session != null)
+@if (_isLoading)
+{
+    <div class="rz-mt-8 rz-text-align-center">
+        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium" />
+    </div>
+}
+else if (_state != null && _session != null)
 {
     <!-- Live session view -->
     <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" class="rz-mt-4 rz-mb-4">
@@ -33,7 +39,7 @@
         Full token: @SessionToken
     </RadzenText>
 
-    <RadzenTabs>
+    <RadzenTabs @bind-SelectedIndex="_selectedTabIndex">
         <Tabs>
             <RadzenTabsItem Text="Stats">
                 <div class="rz-p-4">
@@ -51,7 +57,13 @@
             </RadzenTabsItem>
             <RadzenTabsItem Text="Logs">
                 <div class="rz-p-4">
-                    @if (_session.IsCompleted)
+                    @if (_isLoadingLogs)
+                    {
+                        <div class="rz-text-align-center rz-p-4">
+                            <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Small" />
+                        </div>
+                    }
+                    else if (_session.IsCompleted)
                     {
                         <RadzenCard>
                             <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-mb-2">
@@ -82,6 +94,14 @@
                 <RadzenTabsItem Text="Configuration">
                     <div class="rz-p-4">
                         @ConfigurationContent
+                    </div>
+                </RadzenTabsItem>
+            }
+            else if (_isConfigLoading)
+            {
+                <RadzenTabsItem Text="Configuration">
+                    <div class="rz-p-4 rz-text-align-center">
+                        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Small" />
                     </div>
                 </RadzenTabsItem>
             }
@@ -120,7 +140,7 @@ else if (_dbRecord != null)
         Full token: @SessionToken
     </RadzenText>
 
-    <RadzenTabs>
+    <RadzenTabs @bind-SelectedIndex="_selectedTabIndex">
         <Tabs>
             <RadzenTabsItem Text="Stats">
                 <div class="rz-p-4">
@@ -162,12 +182,21 @@ else if (_dbRecord != null)
             </RadzenTabsItem>
             <RadzenTabsItem Text="Logs">
                 <div class="rz-p-4">
-                    <RadzenCard>
-                        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-mb-2">
-                            <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">Historical Logs</RadzenText>
-                        </RadzenStack>
-                        <pre style="max-height: 400px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem;">@string.Join("\n", _historicalLogs)</pre>
-                    </RadzenCard>
+                    @if (_isLoadingLogs)
+                    {
+                        <div class="rz-text-align-center rz-p-4">
+                            <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Small" />
+                        </div>
+                    }
+                    else
+                    {
+                        <RadzenCard>
+                            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-mb-2">
+                                <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">Historical Logs</RadzenText>
+                            </RadzenStack>
+                            <pre style="max-height: 400px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem;">@string.Join("\n", _historicalLogs)</pre>
+                        </RadzenCard>
+                    }
                 </div>
             </RadzenTabsItem>
             @if (_config != null)
@@ -175,6 +204,14 @@ else if (_dbRecord != null)
                 <RadzenTabsItem Text="Configuration">
                     <div class="rz-p-4">
                         @ConfigurationContent
+                    </div>
+                </RadzenTabsItem>
+            }
+            else if (_isConfigLoading)
+            {
+                <RadzenTabsItem Text="Configuration">
+                    <div class="rz-p-4 rz-text-align-center">
+                        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Small" />
                     </div>
                 </RadzenTabsItem>
             }
@@ -202,6 +239,13 @@ else
     private SeedAssets? _assets;
     private bool _submitDomainsAsFqdns;
 
+    private bool _isLoading = true;
+    private bool _isLoadingLogs = true;
+    private bool _isConfigLoading = true;
+    private int _selectedTabIndex;
+    private bool _needsDataLoad = true;
+    private string _loadedToken = string.Empty;
+
     private static readonly string[] _assetTypes = ["fqdn", "ipaddress", "autonomoussystem", "netblock", "location", "organization"];
 
     private double HistoricalThroughput
@@ -214,23 +258,76 @@ else
         }
     }
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        RefreshState();
         StateStore.OnStateChanged += HandleStateChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (_loadedToken == SessionToken) return;
+
+        // Reset state for new session
+        _loadedToken = SessionToken;
+        _dbRecord = null;
+        _historicalLogs = [];
+        _config = null;
+        _assets = null;
+        _submitDomainsAsFqdns = false;
+        _isLoading = true;
+        _isLoadingLogs = true;
+        _isConfigLoading = true;
+        _selectedTabIndex = 0;
+        _needsDataLoad = true;
+
+        RefreshState();
+
+        if (_state != null && _session != null)
+        {
+            _isLoading = false;
+            if (!_session.IsCompleted)
+                _isLoadingLogs = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_needsDataLoad) return;
+        _needsDataLoad = false;
 
         if (_state == null || _session == null)
         {
-            // Session not in live state — load from DB
+            // Session not in live state — load DB record first for page structure
             _dbRecord = await SessionRepository.GetByTokenAsync(SessionToken);
-            await LoadHistoricalLogs();
-        }
-        else if (_session.IsCompleted)
-        {
-            await LoadHistoricalLogs();
-        }
+            _isLoading = false;
+            StateHasChanged();
 
-        await LoadConfig();
+            // Load logs and config in parallel, updating UI as each completes
+            var logsTask = LoadHistoricalLogs();
+            var configTask = LoadConfig();
+            await logsTask;
+            _isLoadingLogs = false;
+            StateHasChanged();
+            await configTask;
+            _isConfigLoading = false;
+            // Historical view: Configuration is tab index 2 (Stats=0, Logs=1, Configuration=2)
+            if (_config != null) _selectedTabIndex = 2;
+            StateHasChanged();
+        }
+        else
+        {
+            // Live session — load logs if completed, and config in parallel
+            var tasks = new List<Task>();
+            if (_session.IsCompleted)
+            {
+                tasks.Add(LoadHistoricalLogs().ContinueWith(_ => { _isLoadingLogs = false; InvokeAsync(StateHasChanged); }));
+            }
+            tasks.Add(LoadConfig().ContinueWith(_ => { _isConfigLoading = false; InvokeAsync(StateHasChanged); }));
+            await Task.WhenAll(tasks);
+            // Live view: Configuration is tab index 3 (Stats=0, Logs=1, Scope=2, Configuration=3)
+            if (_config != null) _selectedTabIndex = 3;
+            StateHasChanged();
+        }
     }
 
     private async Task LoadConfig()
@@ -266,22 +363,27 @@ else
 
     private async void HandleStateChanged()
     {
-        var wasCompleted = _session?.IsCompleted ?? false;
-        var hadLiveState = _state != null && _session != null;
-        RefreshState();
-
-        if (hadLiveState && (_state == null || _session == null))
+        if (_disposed) return;
+        try
         {
-            // Session disappeared from live state (auto-deleted) — switch to DB view
-            _dbRecord = await SessionRepository.GetByTokenAsync(SessionToken);
-            await LoadHistoricalLogs();
-        }
-        else if (_session?.IsCompleted == true && !wasCompleted)
-        {
-            await LoadHistoricalLogs();
-        }
+            var wasCompleted = _session?.IsCompleted ?? false;
+            var hadLiveState = _state != null && _session != null;
+            RefreshState();
 
-        await InvokeAsync(StateHasChanged);
+            if (hadLiveState && (_state == null || _session == null))
+            {
+                // Session disappeared from live state (auto-deleted) — switch to DB view
+                _dbRecord = await SessionRepository.GetByTokenAsync(SessionToken);
+                await LoadHistoricalLogs();
+            }
+            else if (_session?.IsCompleted == true && !wasCompleted)
+            {
+                await LoadHistoricalLogs();
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (ObjectDisposedException) { }
     }
 
     private async Task RetrySession()
@@ -683,8 +785,11 @@ else
         </RadzenStack>
     };
 
+    private bool _disposed;
+
     public void Dispose()
     {
+        _disposed = true;
         StateStore.OnStateChanged -= HandleStateChanged;
     }
 }

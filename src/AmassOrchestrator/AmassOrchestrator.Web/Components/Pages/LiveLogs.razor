@@ -127,11 +127,16 @@
 
     private async void HandleStateChanged()
     {
-        await InvokeAsync(async () =>
+        if (_disposed) return;
+        try
         {
-            await RefreshOptionsFromDb();
-            StateHasChanged();
-        });
+            await InvokeAsync(async () =>
+            {
+                await RefreshOptionsFromDb();
+                StateHasChanged();
+            });
+        }
+        catch (ObjectDisposedException) { }
     }
 
     private IEnumerable<string> GetFilteredLines()
@@ -180,8 +185,11 @@
 
     private static string ShortToken(string token) => token.Length > 8 ? token[..8] : token;
 
+    private bool _disposed;
+
     public void Dispose()
     {
+        _disposed = true;
         if (_includeLive)
             LogAggregator.OnLogReceived -= HandleLogReceived;
         StateStore.OnStateChanged -= HandleStateChanged;

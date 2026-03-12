@@ -231,8 +231,13 @@
 
     private async void HandleStateChanged()
     {
-        await LoadSessions();
-        await InvokeAsync(StateHasChanged);
+        if (_disposed) return;
+        try
+        {
+            await LoadSessions();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (ObjectDisposedException) { }
     }
 
     private async Task StartEnumeration()
@@ -503,8 +508,11 @@
         return $"{(int)diff.TotalDays}d ago";
     }
 
+    private bool _disposed;
+
     public void Dispose()
     {
+        _disposed = true;
         StateStore.OnStateChanged -= HandleStateChanged;
     }
 }
