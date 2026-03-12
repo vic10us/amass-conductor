@@ -18,55 +18,55 @@ else if (_stats == null || _stats.TotalSessions == 0)
 else
 {
     <RadzenRow Gap="1rem" class="rz-mb-4">
-        <RadzenColumn Size="3">
+        <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@_stats.TotalSessions</RadzenText>
                 <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Total Sessions</RadzenText>
             </RadzenCard>
         </RadzenColumn>
-        <RadzenColumn Size="3">
+        <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0" Style="color: var(--rz-success);">@_stats.CompletedSessions</RadzenText>
                 <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Completed</RadzenText>
             </RadzenCard>
         </RadzenColumn>
-        <RadzenColumn Size="3">
+        <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0" Style="color: var(--rz-danger);">@_stats.FailedSessions</RadzenText>
                 <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Failed</RadzenText>
             </RadzenCard>
         </RadzenColumn>
-        <RadzenColumn Size="3">
+        <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0" Style="color: var(--rz-info);">@_stats.ActiveSessions</RadzenText>
                 <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Active</RadzenText>
             </RadzenCard>
         </RadzenColumn>
-        <RadzenColumn Size="3">
+        <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@_stats.TotalWorkItemsProcessed</RadzenText>
                 <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Work Items Processed</RadzenText>
             </RadzenCard>
         </RadzenColumn>
-        <RadzenColumn Size="3">
+        <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@(_stats.SuccessRate.ToString("F1"))%</RadzenText>
                 <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Success Rate</RadzenText>
             </RadzenCard>
         </RadzenColumn>
-        <RadzenColumn Size="3">
+        <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@(_stats.AverageDurationMinutes.ToString("F1"))m</RadzenText>
                 <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Avg Duration</RadzenText>
             </RadzenCard>
         </RadzenColumn>
-        <RadzenColumn Size="3">
+        <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
-                <RadzenText TextStyle="TextStyle.Body1" class="rz-mb-0">@(_stats.MinDurationMinutes.ToString("F1"))m / @(_stats.MaxDurationMinutes.ToString("F1"))m</RadzenText>
+                <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@(_stats.MinDurationMinutes.ToString("F1"))m / @(_stats.MaxDurationMinutes.ToString("F1"))m</RadzenText>
                 <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Min / Max Duration</RadzenText>
             </RadzenCard>
         </RadzenColumn>
-        <RadzenColumn Size="3">
+        <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@(_stats.AverageThroughputPerSecond.ToString("F2"))</RadzenText>
                 <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Avg Items/s</RadzenText>
@@ -281,5 +281,6 @@ else
         _loading = false;
     }
 
+    private int miniCardWidth = 2;
     private static string ShortToken(string token) => token.Length > 8 ? token[..8] + "..." : token;
 }
