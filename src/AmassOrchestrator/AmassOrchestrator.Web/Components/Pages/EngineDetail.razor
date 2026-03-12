@@ -128,8 +128,13 @@ else
 
     private async void HandleStateChanged()
     {
-        _state = StateStore.GetState(Uri.UnescapeDataString(PodName));
-        await InvokeAsync(StateHasChanged);
+        if (_disposed) return;
+        try
+        {
+            _state = StateStore.GetState(Uri.UnescapeDataString(PodName));
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (ObjectDisposedException) { }
     }
 
     private async Task ShowCreateDialog()
@@ -187,8 +192,11 @@ else
         }
     }
 
+    private bool _disposed;
+
     public void Dispose()
     {
+        _disposed = true;
         StateStore.OnStateChanged -= HandleStateChanged;
     }
 }

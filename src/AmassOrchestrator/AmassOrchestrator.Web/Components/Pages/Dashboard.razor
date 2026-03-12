@@ -43,8 +43,13 @@ else
 
     private async void HandleStateChanged()
     {
-        _states = StateStore.States.Values.ToList();
-        await InvokeAsync(StateHasChanged);
+        if (_disposed) return;
+        try
+        {
+            _states = StateStore.States.Values.ToList();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (ObjectDisposedException) { }
     }
 
     private async Task StartEnumeration()
@@ -74,8 +79,11 @@ else
         }
     }
 
+    private bool _disposed;
+
     public void Dispose()
     {
+        _disposed = true;
         StateStore.OnStateChanged -= HandleStateChanged;
     }
 }
