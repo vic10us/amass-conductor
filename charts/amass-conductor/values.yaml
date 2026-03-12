@@ -60,7 +60,7 @@ orchestrator:
   httpClientTimeoutSeconds: 10
   webSocketBufferSize: 4096
   completionPollThreshold: 5
-  databasePath: data/orchestrator.db
+  databasePath: App_Data/orchestrator.db
   maxActiveSessionsPerEngine: 1
   autoDeleteCompletedSessions: true
 

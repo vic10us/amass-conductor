@@ -118,7 +118,7 @@ These values map to `Orchestrator__*` environment variables in the container.
 | `orchestrator.httpClientTimeoutSeconds` | int | `10` | HTTP client timeout |
 | `orchestrator.webSocketBufferSize` | int | `4096` | WebSocket receive buffer size |
 | `orchestrator.completionPollThreshold` | int | `5` | Consecutive completed polls before marking done |
-| `orchestrator.databasePath` | string | `data/orchestrator.db` | SQLite database file path |
+| `orchestrator.databasePath` | string | `App_Data/orchestrator.db` | SQLite database file path |
 | `orchestrator.maxActiveSessionsPerEngine` | int | `1` | Max concurrent sessions per engine |
 | `orchestrator.autoDeleteCompletedSessions` | bool | `true` | Auto-delete completed sessions from engine |
 
