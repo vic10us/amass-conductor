@@ -23,6 +23,7 @@ builder.Services.AddScoped<DialogService>();
 builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<TooltipService>();
 builder.Services.AddScoped<ContextMenuService>();
+builder.Services.AddScoped<AmassOrchestrator.Web.Services.ThemeService>();
 
 builder.Services.Configure<OrchestratorOptions>(
     builder.Configuration.GetSection(OrchestratorOptions.SectionName));
