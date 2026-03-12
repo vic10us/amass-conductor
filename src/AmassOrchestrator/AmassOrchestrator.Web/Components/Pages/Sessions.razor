@@ -273,7 +273,8 @@
             return;
         }
 
-        var config = JsonSerializer.Deserialize<AmassConfig>(configJson);
+        var data = PersistedSessionData.Deserialize(configJson);
+        var config = data.Config;
         if (config == null)
         {
             NotificationService.Notify(NotificationSeverity.Warning, "Invalid config", "Cannot restart — configuration could not be parsed.");
@@ -423,10 +424,11 @@
             var configJson = await SessionRepository.GetConfigJsonAsync(session.Token);
             if (string.IsNullOrEmpty(configJson)) continue;
 
-            var config = JsonSerializer.Deserialize<AmassConfig>(configJson);
-            if (config == null) continue;
+            var data = PersistedSessionData.Deserialize(configJson);
+            if (data.Config == null) continue;
+            var config = data.Config;
 
-            var result = await EnumerationService.StartEnumerationAsync(config);
+            var result = await EnumerationService.StartEnumerationAsync(config, data.Assets, data.SubmitDomainsAsFqdns);
             if (result.Success)
             {
                 if (session.IsFailed || session.IsCancelled)
