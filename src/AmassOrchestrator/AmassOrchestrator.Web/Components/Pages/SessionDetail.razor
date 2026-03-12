@@ -200,6 +200,7 @@ else
     private List<string> _historicalLogs = [];
     private AmassConfig? _config;
     private SeedAssets? _assets;
+    private bool _submitDomainsAsFqdns;
 
     private static readonly string[] _assetTypes = ["fqdn", "ipaddress", "autonomoussystem", "netblock", "location", "organization"];
 
@@ -242,6 +243,7 @@ else
                 var data = PersistedSessionData.Deserialize(json);
                 _config = data.Config;
                 _assets = data.Assets;
+                _submitDomainsAsFqdns = data.SubmitDomainsAsFqdns;
             }
             catch
             {
@@ -305,7 +307,9 @@ else
         {
             { nameof(CreateSessionDialog.InitialConfig), config },
             { nameof(CreateSessionDialog.ShowEngineChoice), !string.IsNullOrEmpty(_dbRecord.EnginePodName) },
-            { nameof(CreateSessionDialog.OriginalEnginePodName), _dbRecord.EnginePodName ?? string.Empty }
+            { nameof(CreateSessionDialog.OriginalEnginePodName), _dbRecord.EnginePodName ?? string.Empty },
+            { nameof(CreateSessionDialog.InitialAssets), data.Assets },
+            { nameof(CreateSessionDialog.InitialSubmitDomainsAsFqdns), (bool?)data.SubmitDomainsAsFqdns }
         };
 
         var result = await DialogService.OpenAsync<CreateSessionDialog>(
@@ -332,8 +336,13 @@ else
             {
                 var errorMessage = enumResult.ErrorMessage ?? "Unknown error";
                 NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", errorMessage);
-                var newConfigJson = JsonSerializer.Serialize(newConfig);
-                await SessionRepository.CreateFailedAsync(newConfig.Scope?.Domains ?? [], newConfigJson, errorMessage);
+                var persistedData = new PersistedSessionData
+                {
+                    Config = newConfig,
+                    Assets = dialogResult.Assets,
+                    SubmitDomainsAsFqdns = dialogResult.SubmitDomainsAsFqdnAssets
+                };
+                await SessionRepository.CreateFailedAsync(newConfig.Scope?.Domains ?? [], persistedData.Serialize(), errorMessage);
             }
         }
     }
@@ -373,88 +382,112 @@ else
     {
         <RadzenStack Gap="1.5rem">
             @* ── Domains ── *@
-            @if (_config!.Scope?.Domains is { Count: > 0 } domains)
-            {
-                <RadzenCard>
-                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Domains</RadzenText>
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Domains</RadzenText>
+                @if (_config!.Scope?.Domains is { Count: > 0 } domains)
+                {
                     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
                         @foreach (var d in domains)
                         {
                             <RadzenBadge Text="@d" BadgeStyle="BadgeStyle.Primary" />
                         }
                     </RadzenStack>
-                </RadzenCard>
-            }
+                }
+                else
+                {
+                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
+                }
+            </RadzenCard>
 
             @* ── ASNs ── *@
-            @if (_config!.Scope?.Asns is { Count: > 0 } asns)
-            {
-                <RadzenCard>
-                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">ASNs</RadzenText>
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">ASNs</RadzenText>
+                @if (_config!.Scope?.Asns is { Count: > 0 } asns)
+                {
                     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
                         @foreach (var asn in asns)
                         {
                             <RadzenBadge Text="@asn.ToString()" BadgeStyle="BadgeStyle.Info" />
                         }
                     </RadzenStack>
-                </RadzenCard>
-            }
+                }
+                else
+                {
+                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
+                }
+            </RadzenCard>
 
             @* ── CIDRs ── *@
-            @if (_config.Scope?.Cidrs is { Count: > 0 } cidrs)
-            {
-                <RadzenCard>
-                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">CIDRs</RadzenText>
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">CIDRs</RadzenText>
+                @if (_config.Scope?.Cidrs is { Count: > 0 } cidrs)
+                {
                     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
                         @foreach (var cidr in cidrs)
                         {
                             <RadzenBadge Text="@FormatCidr(cidr)" BadgeStyle="BadgeStyle.Info" />
                         }
                     </RadzenStack>
-                </RadzenCard>
-            }
+                }
+                else
+                {
+                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
+                }
+            </RadzenCard>
 
             @* ── IPs ── *@
-            @if (_config.Scope?.Ips is { Count: > 0 } ips)
-            {
-                <RadzenCard>
-                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">IPs</RadzenText>
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">IPs</RadzenText>
+                @if (_config.Scope?.Ips is { Count: > 0 } ips)
+                {
                     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
                         @foreach (var ip in ips)
                         {
                             <RadzenBadge Text="@(new System.Net.IPAddress(ip).ToString())" BadgeStyle="BadgeStyle.Info" />
                         }
                     </RadzenStack>
-                </RadzenCard>
-            }
+                }
+                else
+                {
+                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
+                }
+            </RadzenCard>
 
             @* ── Ports ── *@
-            @if (_config.Scope?.Ports is { Count: > 0 } ports)
-            {
-                <RadzenCard>
-                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Ports</RadzenText>
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Ports</RadzenText>
+                @if (_config.Scope?.Ports is { Count: > 0 } ports)
+                {
                     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
                         @foreach (var port in ports)
                         {
                             <RadzenBadge Text="@port.ToString()" BadgeStyle="BadgeStyle.Light" />
                         }
                     </RadzenStack>
-                </RadzenCard>
-            }
+                }
+                else
+                {
+                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
+                }
+            </RadzenCard>
 
             @* ── Blacklist ── *@
-            @if (_config.Scope?.Blacklist is { Count: > 0 } blacklist)
-            {
-                <RadzenCard>
-                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Blacklist</RadzenText>
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Blacklist</RadzenText>
+                @if (_config.Scope?.Blacklist is { Count: > 0 } blacklist)
+                {
                     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
                         @foreach (var item in blacklist)
                         {
                             <RadzenBadge Text="@item" BadgeStyle="BadgeStyle.Danger" />
                         }
                     </RadzenStack>
-                </RadzenCard>
-            }
+                }
+                else
+                {
+                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
+                }
+            </RadzenCard>
 
             @* ── Options ── *@
             <RadzenCard>
@@ -464,6 +497,7 @@ else
                     <RadzenBadge Text="Brute Force" BadgeStyle="@(_config.BruteForce == true ? BadgeStyle.Success : BadgeStyle.Light)" />
                     <RadzenBadge Text="Alterations" BadgeStyle="@(_config.Alterations == true ? BadgeStyle.Success : BadgeStyle.Light)" />
                     <RadzenBadge Text="Rigid Boundaries" BadgeStyle="@(_config.RigidBoundaries == true ? BadgeStyle.Success : BadgeStyle.Light)" />
+                    <RadzenBadge Text="Submit Domains as FQDN Assets" BadgeStyle="@(_submitDomainsAsFqdns ? BadgeStyle.Success : BadgeStyle.Light)" />
                 </RadzenStack>
             </RadzenCard>
 
@@ -492,10 +526,18 @@ else
                     {
                         <RadzenStack Gap="0.25rem" class="rz-mb-2">
                             <RadzenText TextStyle="TextStyle.Body2"><strong>System:</strong> @(db.System ?? "—")</RadzenText>
+                            @if (!string.IsNullOrWhiteSpace(db.Url))
+                            {
+                                <RadzenText TextStyle="TextStyle.Body2"><strong>URL:</strong> @db.Url</RadzenText>
+                            }
                             <RadzenText TextStyle="TextStyle.Body2"><strong>Host:</strong> @(db.Host ?? "—"):@(db.Port ?? "—")</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body2"><strong>Database:</strong> @(db.DbName ?? "—")</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body2"><strong>Username:</strong> @(db.Username ?? "—")</RadzenText>
                             <RadzenText TextStyle="TextStyle.Body2"><strong>Password:</strong> @MaskSecret(db.Password)</RadzenText>
+                            @if (!string.IsNullOrWhiteSpace(db.Options))
+                            {
+                                <RadzenText TextStyle="TextStyle.Body2"><strong>Options:</strong> @db.Options</RadzenText>
+                            }
                             @if (db.Primary == true)
                             {
                                 <RadzenBadge Text="Primary" BadgeStyle="BadgeStyle.Info" />
@@ -537,86 +579,107 @@ else
             }
 
             @* ── Seed Assets ── *@
-            @if (_assets?.HasAny() == true)
-            {
-                <RadzenCard>
-                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Seed Assets</RadzenText>
-                    <RadzenStack Gap="0.75rem">
-                        @if (_assets.Fqdns is { Count: > 0 })
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Seed Assets</RadzenText>
+                <RadzenStack Gap="0.75rem">
+                    <div>
+                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">FQDNs</RadzenText>
+                        @if (_assets?.Fqdns is { Count: > 0 } fqdns)
                         {
-                            <div>
-                                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">FQDNs</RadzenText>
-                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                                    @foreach (var fqdn in _assets.Fqdns)
-                                    {
-                                        <RadzenBadge Text="@fqdn" BadgeStyle="BadgeStyle.Primary" />
-                                    }
-                                </RadzenStack>
-                            </div>
+                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                                @foreach (var fqdn in fqdns)
+                                {
+                                    <RadzenBadge Text="@fqdn" BadgeStyle="BadgeStyle.Primary" />
+                                }
+                            </RadzenStack>
                         }
-                        @if (_assets.IpAddresses is { Count: > 0 })
+                        else
                         {
-                            <div>
-                                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">IP Addresses</RadzenText>
-                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                                    @foreach (var ip in _assets.IpAddresses)
-                                    {
-                                        <RadzenBadge Text="@ip" BadgeStyle="BadgeStyle.Info" />
-                                    }
-                                </RadzenStack>
-                            </div>
+                            <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
                         }
-                        @if (_assets.AutonomousSystems is { Count: > 0 })
+                    </div>
+                    <div>
+                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">IP Addresses</RadzenText>
+                        @if (_assets?.IpAddresses is { Count: > 0 } assetIps)
                         {
-                            <div>
-                                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Autonomous Systems</RadzenText>
-                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                                    @foreach (var asn in _assets.AutonomousSystems)
-                                    {
-                                        <RadzenBadge Text="@($"AS{asn}")" BadgeStyle="BadgeStyle.Info" />
-                                    }
-                                </RadzenStack>
-                            </div>
+                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                                @foreach (var ip in assetIps)
+                                {
+                                    <RadzenBadge Text="@ip" BadgeStyle="BadgeStyle.Info" />
+                                }
+                            </RadzenStack>
                         }
-                        @if (_assets.Netblocks is { Count: > 0 })
+                        else
                         {
-                            <div>
-                                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Netblocks</RadzenText>
-                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                                    @foreach (var nb in _assets.Netblocks)
-                                    {
-                                        <RadzenBadge Text="@nb" BadgeStyle="BadgeStyle.Info" />
-                                    }
-                                </RadzenStack>
-                            </div>
+                            <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
                         }
-                        @if (_assets.Organizations is { Count: > 0 })
+                    </div>
+                    <div>
+                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Autonomous Systems</RadzenText>
+                        @if (_assets?.AutonomousSystems is { Count: > 0 } assetAsns)
                         {
-                            <div>
-                                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Organizations</RadzenText>
-                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                                    @foreach (var org in _assets.Organizations)
-                                    {
-                                        <RadzenBadge Text="@org" BadgeStyle="BadgeStyle.Secondary" />
-                                    }
-                                </RadzenStack>
-                            </div>
+                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                                @foreach (var asn in assetAsns)
+                                {
+                                    <RadzenBadge Text="@($"AS{asn}")" BadgeStyle="BadgeStyle.Info" />
+                                }
+                            </RadzenStack>
                         }
-                        @if (_assets.Locations is { Count: > 0 })
+                        else
                         {
-                            <div>
-                                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Locations</RadzenText>
-                                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                                    @foreach (var loc in _assets.Locations)
-                                    {
-                                        <RadzenBadge Text="@loc" BadgeStyle="BadgeStyle.Secondary" />
-                                    }
-                                </RadzenStack>
-                            </div>
+                            <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
                         }
-                    </RadzenStack>
-                </RadzenCard>
-            }
+                    </div>
+                    <div>
+                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Netblocks</RadzenText>
+                        @if (_assets?.Netblocks is { Count: > 0 } netblocks)
+                        {
+                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                                @foreach (var nb in netblocks)
+                                {
+                                    <RadzenBadge Text="@nb" BadgeStyle="BadgeStyle.Info" />
+                                }
+                            </RadzenStack>
+                        }
+                        else
+                        {
+                            <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
+                        }
+                    </div>
+                    <div>
+                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Organizations</RadzenText>
+                        @if (_assets?.Organizations is { Count: > 0 } orgs)
+                        {
+                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                                @foreach (var org in orgs)
+                                {
+                                    <RadzenBadge Text="@org" BadgeStyle="BadgeStyle.Secondary" />
+                                }
+                            </RadzenStack>
+                        }
+                        else
+                        {
+                            <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
+                        }
+                    </div>
+                    <div>
+                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Locations</RadzenText>
+                        @if (_assets?.Locations is { Count: > 0 } locs)
+                        {
+                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                                @foreach (var loc in locs)
+                                {
+                                    <RadzenBadge Text="@loc" BadgeStyle="BadgeStyle.Secondary" />
+                                }
+                            </RadzenStack>
+                        }
+                        else
+                        {
+                            <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
+                        }
+                    </div>
+                </RadzenStack>
+            </RadzenCard>
         </RadzenStack>
     };
 

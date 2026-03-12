@@ -235,6 +235,8 @@
     [Parameter] public AmassConfig? InitialConfig { get; set; }
     [Parameter] public string? OriginalEnginePodName { get; set; }
     [Parameter] public bool ShowEngineChoice { get; set; }
+    [Parameter] public SeedAssets? InitialAssets { get; set; }
+    [Parameter] public bool? InitialSubmitDomainsAsFqdns { get; set; }
 
     private string _domains = string.Empty;
     private string _asns = string.Empty;
@@ -281,6 +283,18 @@
 
         if (InitialConfig != null)
             PopulateFromConfig(InitialConfig);
+
+        if (InitialAssets != null)
+        {
+            _assetFqdns = string.Join("\n", InitialAssets.Fqdns);
+            _assetIpAddresses = string.Join("\n", InitialAssets.IpAddresses);
+            _assetAsns = string.Join("\n", InitialAssets.AutonomousSystems);
+            _assetNetblocks = string.Join("\n", InitialAssets.Netblocks);
+            _assetOrganizations = string.Join("\n", InitialAssets.Organizations);
+            _assetLocations = string.Join("\n", InitialAssets.Locations);
+        }
+        if (InitialSubmitDomainsAsFqdns.HasValue)
+            _submitDomainsAsFqdnAssets = InitialSubmitDomainsAsFqdns.Value;
     }
 
     private void PopulateFromConfig(AmassConfig config)
