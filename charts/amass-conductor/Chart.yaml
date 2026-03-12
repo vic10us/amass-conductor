@@ -1,0 +1,11 @@
+apiVersion: v2
+name: amass-conductor
+description: A Helm chart for Amass Conductor - OWASP Amass engine orchestrator
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - amass
+  - owasp
+  - reconnaissance
+  - orchestrator

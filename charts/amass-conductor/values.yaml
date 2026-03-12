@@ -1,0 +1,87 @@
+replicaCount: 1
+
+image:
+  repository: amass-conductor
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+rbac:
+  create: true
+  # Namespace where Amass engine pods run
+  engineNamespace: amass
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: amass-conductor.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Orchestrator configuration (maps to Orchestrator__* env vars)
+orchestrator:
+  namespace: amass
+  statefulSetName: amass-engine
+  enginePort: 4000
+  pollIntervalSeconds: 2
+  labelSelector: "app.kubernetes.io/name=amass,app.kubernetes.io/component=engine"
+  engineBasePath: /api/v1
+  httpClientTimeoutSeconds: 10
+  webSocketBufferSize: 4096
+  completionPollThreshold: 5
+  databasePath: data/orchestrator.db
+  maxActiveSessionsPerEngine: 1
+  autoDeleteCompletedSessions: true
+
+# ASP.NET Core settings
+aspnetcore:
+  environment: Production
+  urls: http://+:8080
+
+# Additional environment variables
+extraEnv: []
+
+persistence:
+  data:
+    enabled: true
+    size: 1Gi
+    accessMode: ReadWriteOnce
+    storageClass: ""
+    existingClaim: ""
+  logs:
+    enabled: false
+    size: 5Gi
+    accessMode: ReadWriteOnce
+    storageClass: ""
+    existingClaim: ""

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "amass-conductor.fullname" . }}
+  labels:
+    {{- include "amass-conductor.labels" . | nindent 4 }}
+data:
+  Orchestrator__Namespace: {{ .Values.orchestrator.namespace | quote }}
+  Orchestrator__StatefulSetName: {{ .Values.orchestrator.statefulSetName | quote }}
+  Orchestrator__EnginePort: {{ .Values.orchestrator.enginePort | quote }}
+  Orchestrator__PollIntervalSeconds: {{ .Values.orchestrator.pollIntervalSeconds | quote }}
+  Orchestrator__LabelSelector: {{ .Values.orchestrator.labelSelector | quote }}
+  Orchestrator__EngineBasePath: {{ .Values.orchestrator.engineBasePath | quote }}
+  Orchestrator__HttpClientTimeoutSeconds: {{ .Values.orchestrator.httpClientTimeoutSeconds | quote }}
+  Orchestrator__WebSocketBufferSize: {{ .Values.orchestrator.webSocketBufferSize | quote }}
+  Orchestrator__CompletionPollThreshold: {{ .Values.orchestrator.completionPollThreshold | quote }}
+  Orchestrator__DatabasePath: {{ .Values.orchestrator.databasePath | quote }}
+  Orchestrator__MaxActiveSessionsPerEngine: {{ .Values.orchestrator.maxActiveSessionsPerEngine | quote }}
+  Orchestrator__AutoDeleteCompletedSessions: {{ .Values.orchestrator.autoDeleteCompletedSessions | quote }}
