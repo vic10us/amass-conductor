@@ -256,8 +256,13 @@
             {
                 var errorMessage = enumResult.ErrorMessage ?? "Unknown error";
                 NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", errorMessage);
-                var configJson = JsonSerializer.Serialize(config);
-                await SessionRepository.CreateFailedAsync(config.Scope?.Domains ?? [], configJson, errorMessage);
+                var persistedData = new PersistedSessionData
+                {
+                    Config = config,
+                    Assets = dialogResult.Assets,
+                    SubmitDomainsAsFqdns = dialogResult.SubmitDomainsAsFqdnAssets
+                };
+                await SessionRepository.CreateFailedAsync(config.Scope?.Domains ?? [], persistedData.Serialize(), errorMessage);
             }
             await LoadSessions();
             await InvokeAsync(StateHasChanged);
@@ -285,7 +290,9 @@
         {
             { nameof(CreateSessionDialog.InitialConfig), config },
             { nameof(CreateSessionDialog.ShowEngineChoice), !string.IsNullOrEmpty(session.EnginePodName) },
-            { nameof(CreateSessionDialog.OriginalEnginePodName), session.EnginePodName ?? string.Empty }
+            { nameof(CreateSessionDialog.OriginalEnginePodName), session.EnginePodName ?? string.Empty },
+            { nameof(CreateSessionDialog.InitialAssets), data.Assets },
+            { nameof(CreateSessionDialog.InitialSubmitDomainsAsFqdns), (bool?)data.SubmitDomainsAsFqdns }
         };
 
         var result = await DialogService.OpenAsync<CreateSessionDialog>(
@@ -297,8 +304,8 @@
         {
             var newConfig = dialogResult.Config;
             var enumResult = dialogResult.UseSameEngine && !string.IsNullOrEmpty(dialogResult.TargetEnginePodName)
-                ? await EnumerationService.StartEnumerationOnEngineAsync(dialogResult.TargetEnginePodName, newConfig)
-                : await EnumerationService.StartEnumerationAsync(newConfig);
+                ? await EnumerationService.StartEnumerationOnEngineAsync(dialogResult.TargetEnginePodName, newConfig, dialogResult.Assets, dialogResult.SubmitDomainsAsFqdnAssets)
+                : await EnumerationService.StartEnumerationAsync(newConfig, dialogResult.Assets, dialogResult.SubmitDomainsAsFqdnAssets);
 
             if (enumResult.Success)
             {
@@ -314,8 +321,13 @@
             {
                 var errorMessage = enumResult.ErrorMessage ?? "Unknown error";
                 NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", errorMessage);
-                var newConfigJson = JsonSerializer.Serialize(newConfig);
-                await SessionRepository.CreateFailedAsync(newConfig.Scope?.Domains ?? [], newConfigJson, errorMessage);
+                var persistedData = new PersistedSessionData
+                {
+                    Config = newConfig,
+                    Assets = dialogResult.Assets,
+                    SubmitDomainsAsFqdns = dialogResult.SubmitDomainsAsFqdnAssets
+                };
+                await SessionRepository.CreateFailedAsync(newConfig.Scope?.Domains ?? [], persistedData.Serialize(), errorMessage);
             }
             await LoadSessions();
             await InvokeAsync(StateHasChanged);
