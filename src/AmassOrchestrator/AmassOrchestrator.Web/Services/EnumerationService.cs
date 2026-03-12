@@ -152,7 +152,29 @@ public class EnumerationService(
         }
     }
 
+    private const int MaxBatchSize = 1000;
+
     private async Task SubmitBulkAsync(string podIp, int port, string podName, string sessionToken,
+        string assetType, List<object> items)
+    {
+        if (items.Count <= MaxBatchSize)
+        {
+            await SubmitBulkBatchAsync(podIp, port, podName, sessionToken, assetType, items);
+            return;
+        }
+
+        var totalBatches = (int)Math.Ceiling((double)items.Count / MaxBatchSize);
+        logger.LogInformation("Chunking {AssetType} submission of {TotalCount} items into {BatchCount} batches for session {Token} on {PodName}",
+            assetType, items.Count, totalBatches, sessionToken, podName);
+
+        for (var i = 0; i < items.Count; i += MaxBatchSize)
+        {
+            var batch = items.GetRange(i, Math.Min(MaxBatchSize, items.Count - i));
+            await SubmitBulkBatchAsync(podIp, port, podName, sessionToken, assetType, batch);
+        }
+    }
+
+    private async Task SubmitBulkBatchAsync(string podIp, int port, string podName, string sessionToken,
         string assetType, List<object> items)
     {
         try

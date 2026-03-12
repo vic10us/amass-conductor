@@ -218,6 +218,28 @@ public class EnumerationServiceTests
     }
 
     [Fact]
+    public async Task StartEnumeration_LargeAssetList_ChunksIntoBatches()
+    {
+        _stateStore.UpdateState("engine-0", MakeEngine("engine-0", 0));
+
+        _engineClient.Setup(c => c.CreateSessionAsync("10.0.0.0", 8080, It.IsAny<AmassConfig>(), default))
+            .ReturnsAsync(new CreateSessionResponse { SessionToken = "token-chunk" });
+        _engineClient.Setup(c => c.BulkAddAssetsAsync("10.0.0.0", 8080, "token-chunk", "fqdn", It.IsAny<BulkAddAssetsRequest>(), default))
+            .ReturnsAsync(new BulkAddAssetsResponse { Ingested = 1 });
+
+        var fqdns = Enumerable.Range(0, 2500).Select(i => $"host{i}.example.com").ToList();
+        var assets = new SeedAssets { Fqdns = fqdns };
+
+        var result = await _sut.StartEnumerationAsync(MakeConfig("example.com"), assets, submitDomainsAsFqdns: false);
+
+        Assert.True(result.Success);
+        // 2500 FQDNs → 3 batches (1000 + 1000 + 500)
+        _engineClient.Verify(
+            c => c.BulkAddAssetsAsync("10.0.0.0", 8080, "token-chunk", "fqdn", It.IsAny<BulkAddAssetsRequest>(), default),
+            Times.Exactly(3));
+    }
+
+    [Fact]
     public async Task StartEnumeration_ToggleOff_WithExplicitFqdns_SubmitsOnlyExplicitFqdns()
     {
         _stateStore.UpdateState("engine-0", MakeEngine("engine-0", 0));
