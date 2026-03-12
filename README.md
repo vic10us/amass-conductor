@@ -88,6 +88,7 @@ Override via environment variables: `Orchestrator__Namespace=default` (double un
 - [Architecture Deep-Dive](docs/ARCHITECTURE.md) — system design, services, data flows
 - [Usage Guide](docs/USAGE_GUIDE.md) — step-by-step UI walkthrough
 - [Engine API Reference](docs/ENGINE_API_GUIDE.md) — REST and WebSocket API for engine pods
+- [Helm Chart Guide](docs/HELM_CHART.md) — installation, configuration, and deployment scenarios
 - [Presentation — General Overview](docs/PRESENTATION.md) — Marp slide deck for introductions
 - [Presentation — Operations](docs/PRESENTATION-OPERATIONS.md) — Marp slide deck on session lifecycle and monitoring
 - [Presentation — Architecture](docs/PRESENTATION-ARCHITECTURE.md) — Marp slide deck on technical design
