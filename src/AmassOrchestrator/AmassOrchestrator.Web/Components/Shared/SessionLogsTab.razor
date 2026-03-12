@@ -1,0 +1,33 @@
+<div class="rz-p-4">
+    @if (IsLoading)
+    {
+        <div class="rz-text-align-center rz-p-4">
+            <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Small" />
+        </div>
+    }
+    else if (ShowHistoricalLogs)
+    {
+        <RadzenCard>
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-mb-2">
+                <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">Historical Logs</RadzenText>
+            </RadzenStack>
+            <pre style="max-height: 400px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem;">@string.Join("\n", HistoricalLogs)</pre>
+        </RadzenCard>
+    }
+    else
+    {
+        <LogViewer PodIp="@PodIp" Port="@Port" SessionToken="@SessionToken" />
+    }
+</div>
+
+@code {
+    [Parameter] public string PodIp { get; set; } = string.Empty;
+    [Parameter] public int Port { get; set; }
+    [Parameter] public string SessionToken { get; set; } = string.Empty;
+    [Parameter] public SessionInfo? Session { get; set; }
+    [Parameter] public SessionRecord? DbRecord { get; set; }
+    [Parameter] public List<string> HistoricalLogs { get; set; } = [];
+    [Parameter] public bool IsLoading { get; set; }
+
+    private bool ShowHistoricalLogs => DbRecord != null || Session?.IsCompleted == true;
+}
