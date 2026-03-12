@@ -27,4 +27,9 @@
     <None Include="wordlists\*.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <!-- Exclude files in the App_Data folder and any .log files from being watched -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);App_Data\**;**\*.log</DefaultItemExcludes>
+  </PropertyGroup>
+
 </Project>

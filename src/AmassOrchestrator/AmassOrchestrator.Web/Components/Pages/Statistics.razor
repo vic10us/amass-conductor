@@ -42,9 +42,6 @@ else
                 <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Active</RadzenText>
             </RadzenCard>
         </RadzenColumn>
-    </RadzenRow>
-
-    <RadzenRow Gap="1rem" class="rz-mb-4">
         <RadzenColumn Size="3">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@_stats.TotalWorkItemsProcessed</RadzenText>
@@ -69,9 +66,6 @@ else
                 <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Min / Max Duration</RadzenText>
             </RadzenCard>
         </RadzenColumn>
-    </RadzenRow>
-
-    <RadzenRow Gap="1rem" class="rz-mb-4">
         <RadzenColumn Size="3">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@(_stats.AverageThroughputPerSecond.ToString("F2"))</RadzenText>
@@ -80,18 +74,51 @@ else
         </RadzenColumn>
     </RadzenRow>
 
-    <RadzenRow Gap="1rem" class="rz-mb-4">
-        <RadzenColumn Size="8">
+        <RadzenRow Gap="1rem" class="rz-mb-4">
+        <RadzenColumn Size="9">
             <RadzenCard>
-                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Sessions Over Time (Last 30 Days)</RadzenText>
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Work Items Per Session (Last 20)</RadzenText>
                 <RadzenChart Style="height: 300px;">
-                    <RadzenColumnSeries Data="@_stats.SessionsOverTime" CategoryProperty="Date" ValueProperty="Count" Title="Sessions" />
+                    <RadzenLineSeries Smooth="@true" Data="@_stats.WorkItemsPerSession" CategoryProperty="Token" ValueProperty="WorkItems" Title="Work Items">
+                        <RadzenMarkers Visible="@true" MarkerType="MarkerType.Circle" Fill="var(--rz-primary)"/>
+                        <RadzenSeriesDataLabels Visible="@true" />
+                    </RadzenLineSeries>
                     <RadzenCategoryAxis />
-                    <RadzenValueAxis />
+                    <RadzenValueAxis>
+                        <RadzenGridLines Visible="true" />
+                    </RadzenValueAxis>
                 </RadzenChart>
             </RadzenCard>
         </RadzenColumn>
-        <RadzenColumn Size="4">
+        <RadzenColumn Size="3">
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Sessions Per Engine</RadzenText>
+                <RadzenChart Style="height: 300px;">
+                    <RadzenPieSeries Data="@_stats.EngineDistribution" CategoryProperty="EnginePodName" ValueProperty="SessionCount" Title="Engine" />
+                </RadzenChart>
+            </RadzenCard>
+        </RadzenColumn>
+    </RadzenRow>
+
+    <RadzenRow Gap="1rem" class="rz-mb-4">
+        <RadzenColumn Size="9">
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Sessions Over Time (Last 30 Days)</RadzenText>
+                <RadzenChart Style="height: 300px;">
+                    <RadzenChartTooltipOptions Shared=@true />
+                    <RadzenLineSeries Smooth="@true" Data="@_stats.SessionsOverTime" CategoryProperty="Date" ValueProperty="Count" Title="Sessions">
+                        <RadzenMarkers Visible="@true" MarkerType="MarkerType.Circle" Fill="var(--rz-primary)"/>
+                        <RadzenSeriesDataLabels Visible="@true" />
+                    </RadzenLineSeries>
+                    <RadzenCategoryAxis Padding="20" />
+                    <RadzenValueAxis>
+                        <RadzenGridLines Visible="true" />
+                        <RadzenAxisTitle Text="Revenue in USD" />
+                    </RadzenValueAxis>
+                </RadzenChart>
+            </RadzenCard>
+        </RadzenColumn>
+        <RadzenColumn Size="3">
             <RadzenCard>
                 <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Success vs Failure</RadzenText>
                 <RadzenChart Style="height: 300px;">
@@ -99,10 +126,10 @@ else
                 </RadzenChart>
             </RadzenCard>
         </RadzenColumn>
-    </RadzenRow>
 
     @if (_stats.DurationPerSession.Any())
     {
+        <RadzenColumn Size="6">
         <RadzenCard class="rz-mb-4">
             <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Enumeration Duration (Last 20 Completed)</RadzenText>
             <RadzenChart Style="height: 300px;">
@@ -113,10 +140,12 @@ else
                 </RadzenValueAxis>
             </RadzenChart>
         </RadzenCard>
+        </RadzenColumn>
     }
 
     @if (_stats.ThroughputPerSession.Any())
     {
+        <RadzenColumn Size="6">
         <RadzenCard class="rz-mb-4">
             <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Throughput Per Session (Last 20 Completed)</RadzenText>
             <RadzenChart Style="height: 300px;">
@@ -127,30 +156,11 @@ else
                 </RadzenValueAxis>
             </RadzenChart>
         </RadzenCard>
+        </RadzenColumn>
     }
 
-    <RadzenRow Gap="1rem" class="rz-mb-4">
-        <RadzenColumn Size="8">
-            <RadzenCard>
-                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Work Items Per Session (Last 20)</RadzenText>
-                <RadzenChart Style="height: 300px;">
-                    <RadzenColumnSeries Data="@_stats.WorkItemsPerSession" CategoryProperty="Token" ValueProperty="WorkItems" Title="Work Items" />
-                    <RadzenCategoryAxis />
-                    <RadzenValueAxis>
-                        <RadzenGridLines Visible="true" />
-                    </RadzenValueAxis>
-                </RadzenChart>
-            </RadzenCard>
-        </RadzenColumn>
-        <RadzenColumn Size="4">
-            <RadzenCard>
-                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Sessions Per Engine</RadzenText>
-                <RadzenChart Style="height: 300px;">
-                    <RadzenPieSeries Data="@_stats.EngineDistribution" CategoryProperty="EnginePodName" ValueProperty="SessionCount" Title="Engine" />
-                </RadzenChart>
-            </RadzenCard>
-        </RadzenColumn>
     </RadzenRow>
+
 }
 
 @code {

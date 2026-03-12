@@ -75,7 +75,7 @@ All settings live under the `Orchestrator` section in `appsettings.json`:
 | `CompletionPollThreshold` | int | `5` | Consecutive polls with completed == total before marking done |
 | `MaxActiveSessionsPerEngine` | int | `1` | Max concurrent sessions per engine pod |
 | `AutoDeleteCompletedSessions` | bool | `true` | Auto-delete completed sessions from engine |
-| `DatabasePath` | string | `data/orchestrator.db` | SQLite database file path |
+| `DatabasePath` | string | `App_Data/orchestrator.db` | SQLite database file path |
 | `SupportedDatabaseSystems` | string[] | `["postgres", "mysql"]` | Allowed database systems in config |
 | `BruteForceWordlistFile` | string | `wordlists/default-namelist.txt` | Default brute-force wordlist |
 | `AlterationsWordlistFile` | string | `wordlists/default-alterations.txt` | Default alterations wordlist |

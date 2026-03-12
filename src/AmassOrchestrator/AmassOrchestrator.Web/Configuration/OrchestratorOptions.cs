@@ -17,7 +17,7 @@ public class OrchestratorOptions
     public string BruteForceWordlistFile { get; set; } = "wordlists/default-namelist.txt";
     public string AlterationsWordlistFile { get; set; } = "wordlists/default-alterations.txt";
     public string DefaultTransformationsFile { get; set; } = "wordlists/default-transformations.json";
-    public string DatabasePath { get; set; } = "data/orchestrator.db";
+    public string DatabasePath { get; set; } = "App_Data/orchestrator.db";
     public int MaxActiveSessionsPerEngine { get; set; } = 1;
     public bool AutoDeleteCompletedSessions { get; set; } = true;
 }
