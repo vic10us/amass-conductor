@@ -1,0 +1,17 @@
+<div class="rz-p-4">
+    <RadzenStack Gap="1rem">
+        @foreach (var assetType in _assetTypes)
+        {
+            <ScopeTable PodIp="@PodIp" Port="@Port"
+                        SessionToken="@SessionToken" AssetType="@assetType" />
+        }
+    </RadzenStack>
+</div>
+
+@code {
+    [Parameter] public string PodIp { get; set; } = string.Empty;
+    [Parameter] public int Port { get; set; }
+    [Parameter] public string SessionToken { get; set; } = string.Empty;
+
+    private static readonly string[] _assetTypes = ["fqdn", "ipaddress", "autonomoussystem", "netblock", "location", "organization"];
+}

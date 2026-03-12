@@ -1,4 +1,5 @@
 @page "/engine/{PodName}/session/{SessionToken}"
+@page "/engine/{PodName}/session/{SessionToken}/{Tab?}"
 @implements IDisposable
 @inject EngineStateStore StateStore
 @inject IOptions<AmassOrchestrator.Web.Configuration.OrchestratorOptions> Options
@@ -39,62 +40,22 @@ else if (_state != null && _session != null)
         Full token: @SessionToken
     </RadzenText>
 
-    <RadzenTabs @bind-SelectedIndex="_selectedTabIndex">
+    <RadzenTabs SelectedIndex="@TabNameToIndex(Tab)" Change="@OnTabChanged">
         <Tabs>
             <RadzenTabsItem Text="Stats">
-                <div class="rz-p-4">
-                    @if (_session.IsCompleted)
-                    {
-                        <RadzenAlert AlertStyle="AlertStyle.Success" ShowIcon="true" class="rz-mb-4">
-                            Enumeration completed.
-                        </RadzenAlert>
-                    }
-                    <ProgressBar Completed="@_session.WorkItemsCompleted" Total="@_session.WorkItemsTotal" IsCompleted="@_session.IsCompleted" ItemsPerSecond="@_session.ItemsPerSecond" />
-                    <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2">
-                        Progress: @_session.ProgressPercent%
-                    </RadzenText>
-                </div>
+                <SessionStatsTab Session="@_session" />
             </RadzenTabsItem>
             <RadzenTabsItem Text="Logs">
-                <div class="rz-p-4">
-                    @if (_isLoadingLogs)
-                    {
-                        <div class="rz-text-align-center rz-p-4">
-                            <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Small" />
-                        </div>
-                    }
-                    else if (_session.IsCompleted)
-                    {
-                        <RadzenCard>
-                            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-mb-2">
-                                <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">Historical Logs</RadzenText>
-                            </RadzenStack>
-                            <pre style="max-height: 400px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem;">@string.Join("\n", _historicalLogs)</pre>
-                        </RadzenCard>
-                    }
-                    else
-                    {
-                        <LogViewer PodIp="@_state.Pod.PodIP" Port="@Options.Value.EnginePort" SessionToken="@SessionToken" />
-                    }
-                </div>
+                <SessionLogsTab PodIp="@_state.Pod.PodIP" Port="@Options.Value.EnginePort" SessionToken="@SessionToken"
+                                Session="@_session" HistoricalLogs="@_historicalLogs" IsLoading="@_isLoadingLogs" />
             </RadzenTabsItem>
             <RadzenTabsItem Text="Scope">
-                <div class="rz-p-4">
-                    <RadzenStack Gap="1rem">
-                        @foreach (var assetType in _assetTypes)
-                        {
-                            <ScopeTable PodIp="@_state.Pod.PodIP" Port="@Options.Value.EnginePort"
-                                        SessionToken="@SessionToken" AssetType="@assetType" />
-                        }
-                    </RadzenStack>
-                </div>
+                <SessionScopeTab PodIp="@_state.Pod.PodIP" Port="@Options.Value.EnginePort" SessionToken="@SessionToken" />
             </RadzenTabsItem>
             @if (_config != null)
             {
                 <RadzenTabsItem Text="Configuration">
-                    <div class="rz-p-4">
-                        @ConfigurationContent
-                    </div>
+                    <SessionConfigTab Config="@_config" Assets="@_assets" SubmitDomainsAsFqdns="@_submitDomainsAsFqdns" />
                 </RadzenTabsItem>
             }
             else if (_isConfigLoading)
@@ -140,71 +101,18 @@ else if (_dbRecord != null)
         Full token: @SessionToken
     </RadzenText>
 
-    <RadzenTabs @bind-SelectedIndex="_selectedTabIndex">
+    <RadzenTabs SelectedIndex="@TabNameToIndex(Tab)" Change="@OnTabChanged">
         <Tabs>
             <RadzenTabsItem Text="Stats">
-                <div class="rz-p-4">
-                    @if (_dbRecord.IsFailed)
-                    {
-                        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" class="rz-mb-4">
-                            @(_dbRecord.ErrorMessage ?? "Enumeration failed.")
-                        </RadzenAlert>
-                    }
-                    else if (_dbRecord.IsCancelled)
-                    {
-                        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true" class="rz-mb-4">
-                            Enumeration was cancelled.
-                        </RadzenAlert>
-                    }
-                    else if (_dbRecord.IsCompleted)
-                    {
-                        <RadzenAlert AlertStyle="AlertStyle.Success" ShowIcon="true" class="rz-mb-4">
-                            Enumeration completed.
-                        </RadzenAlert>
-                    }
-                    <ProgressBar Completed="@_dbRecord.WorkItemsCompleted" Total="@_dbRecord.WorkItemsTotal" IsCompleted="@_dbRecord.IsCompleted" IsFailed="@_dbRecord.IsFailed" IsCancelled="@_dbRecord.IsCancelled" />
-                    <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2">
-                        Engine: @_dbRecord.EnginePodName
-                    </RadzenText>
-                    @if (_dbRecord.CompletedAtUtc.HasValue)
-                    {
-                        <RadzenText TextStyle="TextStyle.Body2">
-                            Completed: @_dbRecord.CompletedAtUtc.Value.ToString("yyyy-MM-dd HH:mm:ss UTC")
-                        </RadzenText>
-                        @if (HistoricalThroughput > 0)
-                        {
-                            <RadzenText TextStyle="TextStyle.Body2">
-                                Avg throughput: @HistoricalThroughput items/s
-                            </RadzenText>
-                        }
-                    }
-                </div>
+                <SessionStatsTab DbRecord="@_dbRecord" />
             </RadzenTabsItem>
             <RadzenTabsItem Text="Logs">
-                <div class="rz-p-4">
-                    @if (_isLoadingLogs)
-                    {
-                        <div class="rz-text-align-center rz-p-4">
-                            <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Small" />
-                        </div>
-                    }
-                    else
-                    {
-                        <RadzenCard>
-                            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" class="rz-mb-2">
-                                <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">Historical Logs</RadzenText>
-                            </RadzenStack>
-                            <pre style="max-height: 400px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem;">@string.Join("\n", _historicalLogs)</pre>
-                        </RadzenCard>
-                    }
-                </div>
+                <SessionLogsTab DbRecord="@_dbRecord" HistoricalLogs="@_historicalLogs" IsLoading="@_isLoadingLogs" />
             </RadzenTabsItem>
             @if (_config != null)
             {
                 <RadzenTabsItem Text="Configuration">
-                    <div class="rz-p-4">
-                        @ConfigurationContent
-                    </div>
+                    <SessionConfigTab Config="@_config" Assets="@_assets" SubmitDomainsAsFqdns="@_submitDomainsAsFqdns" />
                 </RadzenTabsItem>
             }
             else if (_isConfigLoading)
@@ -228,8 +136,11 @@ else
 @code {
     [Parameter] public string PodName { get; set; } = string.Empty;
     [Parameter] public string SessionToken { get; set; } = string.Empty;
+    [Parameter] public string? Tab { get; set; }
 
     private string ShortToken => SessionToken.Length > 8 ? SessionToken[..8] + "..." : SessionToken;
+
+    private bool _isLiveView => _state != null && _session != null;
 
     private EngineInstanceState? _state;
     private SessionInfo? _session;
@@ -242,20 +153,31 @@ else
     private bool _isLoading = true;
     private bool _isLoadingLogs = true;
     private bool _isConfigLoading = true;
-    private int _selectedTabIndex;
     private bool _needsDataLoad = true;
     private string _loadedToken = string.Empty;
 
-    private static readonly string[] _assetTypes = ["fqdn", "ipaddress", "autonomoussystem", "netblock", "location", "organization"];
-
-    private double HistoricalThroughput
+    private int TabNameToIndex(string? tab) => tab?.ToLowerInvariant() switch
     {
-        get
-        {
-            if (_dbRecord?.CompletedAtUtc == null || _dbRecord.WorkItemsCompleted <= 0) return 0;
-            var duration = (_dbRecord.CompletedAtUtc.Value - _dbRecord.CreatedAtUtc).TotalSeconds;
-            return duration > 0 ? Math.Round(_dbRecord.WorkItemsCompleted / duration, 2) : 0;
-        }
+        "logs" => 1,
+        "scope" => _isLiveView ? 2 : -1,
+        "configuration" => _isLiveView ? 3 : 2,
+        _ => 0
+    };
+
+    private string IndexToTabName(int index) => (_isLiveView, index) switch
+    {
+        (_, 0) => "stats",
+        (_, 1) => "logs",
+        (true, 2) => "scope",
+        (true, 3) => "configuration",
+        (false, 2) => "configuration",
+        _ => "stats"
+    };
+
+    private void OnTabChanged(int index)
+    {
+        var tabName = IndexToTabName(index);
+        Navigation.NavigateTo($"engine/{Uri.EscapeDataString(PodName)}/session/{SessionToken}/{tabName}", replace: true);
     }
 
     protected override void OnInitialized()
@@ -277,7 +199,6 @@ else
         _isLoading = true;
         _isLoadingLogs = true;
         _isConfigLoading = true;
-        _selectedTabIndex = 0;
         _needsDataLoad = true;
 
         RefreshState();
@@ -310,8 +231,6 @@ else
             StateHasChanged();
             await configTask;
             _isConfigLoading = false;
-            // Historical view: Configuration is tab index 2 (Stats=0, Logs=1, Configuration=2)
-            if (_config != null) _selectedTabIndex = 2;
             StateHasChanged();
         }
         else
@@ -324,8 +243,6 @@ else
             }
             tasks.Add(LoadConfig().ContinueWith(_ => { _isConfigLoading = false; InvokeAsync(StateHasChanged); }));
             await Task.WhenAll(tasks);
-            // Live view: Configuration is tab index 3 (Stats=0, Logs=1, Scope=2, Configuration=3)
-            if (_config != null) _selectedTabIndex = 3;
             StateHasChanged();
         }
     }
@@ -460,330 +377,6 @@ else
         NotificationService.Notify(NotificationSeverity.Success, "Session deleted");
         Navigation.NavigateTo("sessions");
     }
-
-    private static string MaskSecret(string? value)
-        => string.IsNullOrEmpty(value) ? "—" : value.Length <= 4 ? "****" : value[..2] + new string('*', value.Length - 4) + value[^2..];
-
-    private static string FormatCidr(IpNet net)
-    {
-        if (net.Ip == null || net.Mask == null) return string.Empty;
-        var addr = new System.Net.IPAddress(net.Ip);
-        int prefix = 0;
-        foreach (var b in net.Mask)
-        {
-            for (int i = 7; i >= 0; i--)
-            {
-                if ((b & (1 << i)) != 0) prefix++;
-                else break;
-            }
-        }
-        return $"{addr}/{prefix}";
-    }
-
-    private RenderFragment ConfigurationContent => __builder =>
-    {
-        <RadzenStack Gap="1.5rem">
-            @* ── Domains ── *@
-            <RadzenCard>
-                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Domains</RadzenText>
-                @if (_config!.Scope?.Domains is { Count: > 0 } domains)
-                {
-                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                        @foreach (var d in domains)
-                        {
-                            <RadzenBadge Text="@d" BadgeStyle="BadgeStyle.Primary" />
-                        }
-                    </RadzenStack>
-                }
-                else
-                {
-                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                }
-            </RadzenCard>
-
-            @* ── ASNs ── *@
-            <RadzenCard>
-                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">ASNs</RadzenText>
-                @if (_config!.Scope?.Asns is { Count: > 0 } asns)
-                {
-                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                        @foreach (var asn in asns)
-                        {
-                            <RadzenBadge Text="@asn.ToString()" BadgeStyle="BadgeStyle.Info" />
-                        }
-                    </RadzenStack>
-                }
-                else
-                {
-                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                }
-            </RadzenCard>
-
-            @* ── CIDRs ── *@
-            <RadzenCard>
-                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">CIDRs</RadzenText>
-                @if (_config.Scope?.Cidrs is { Count: > 0 } cidrs)
-                {
-                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                        @foreach (var cidr in cidrs)
-                        {
-                            <RadzenBadge Text="@FormatCidr(cidr)" BadgeStyle="BadgeStyle.Info" />
-                        }
-                    </RadzenStack>
-                }
-                else
-                {
-                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                }
-            </RadzenCard>
-
-            @* ── IPs ── *@
-            <RadzenCard>
-                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">IPs</RadzenText>
-                @if (_config.Scope?.Ips is { Count: > 0 } ips)
-                {
-                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                        @foreach (var ip in ips)
-                        {
-                            <RadzenBadge Text="@(new System.Net.IPAddress(ip).ToString())" BadgeStyle="BadgeStyle.Info" />
-                        }
-                    </RadzenStack>
-                }
-                else
-                {
-                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                }
-            </RadzenCard>
-
-            @* ── Ports ── *@
-            <RadzenCard>
-                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Ports</RadzenText>
-                @if (_config.Scope?.Ports is { Count: > 0 } ports)
-                {
-                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                        @foreach (var port in ports)
-                        {
-                            <RadzenBadge Text="@port.ToString()" BadgeStyle="BadgeStyle.Light" />
-                        }
-                    </RadzenStack>
-                }
-                else
-                {
-                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                }
-            </RadzenCard>
-
-            @* ── Blacklist ── *@
-            <RadzenCard>
-                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Blacklist</RadzenText>
-                @if (_config.Scope?.Blacklist is { Count: > 0 } blacklist)
-                {
-                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                        @foreach (var item in blacklist)
-                        {
-                            <RadzenBadge Text="@item" BadgeStyle="BadgeStyle.Danger" />
-                        }
-                    </RadzenStack>
-                }
-                else
-                {
-                    <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                }
-            </RadzenCard>
-
-            @* ── Options ── *@
-            <RadzenCard>
-                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Options</RadzenText>
-                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                    <RadzenBadge Text="Active" BadgeStyle="@(_config.Active == true ? BadgeStyle.Success : BadgeStyle.Light)" />
-                    <RadzenBadge Text="Brute Force" BadgeStyle="@(_config.BruteForce == true ? BadgeStyle.Success : BadgeStyle.Light)" />
-                    <RadzenBadge Text="Alterations" BadgeStyle="@(_config.Alterations == true ? BadgeStyle.Success : BadgeStyle.Light)" />
-                    <RadzenBadge Text="Rigid Boundaries" BadgeStyle="@(_config.RigidBoundaries == true ? BadgeStyle.Success : BadgeStyle.Light)" />
-                    <RadzenBadge Text="Submit Domains as FQDN Assets" BadgeStyle="@(_submitDomainsAsFqdns ? BadgeStyle.Success : BadgeStyle.Light)" />
-                </RadzenStack>
-            </RadzenCard>
-
-            @* ── Wordlists ── *@
-            @if (_config.Wordlist is { Count: > 0 })
-            {
-                <RadzenCard>
-                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Brute Force Wordlist</RadzenText>
-                    <pre style="max-height: 150px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem;">@string.Join("\n", _config.Wordlist)</pre>
-                </RadzenCard>
-            }
-            @if (_config.AltWorldlist is { Count: > 0 })
-            {
-                <RadzenCard>
-                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Alterations Wordlist</RadzenText>
-                    <pre style="max-height: 150px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem;">@string.Join("\n", _config.AltWorldlist)</pre>
-                </RadzenCard>
-            }
-
-            @* ── Database ── *@
-            @if (_config.Database is { Count: > 0 })
-            {
-                <RadzenCard>
-                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Database</RadzenText>
-                    @foreach (var db in _config.Database)
-                    {
-                        <RadzenStack Gap="0.25rem" class="rz-mb-2">
-                            <RadzenText TextStyle="TextStyle.Body2"><strong>System:</strong> @(db.System ?? "—")</RadzenText>
-                            @if (!string.IsNullOrWhiteSpace(db.Url))
-                            {
-                                <RadzenText TextStyle="TextStyle.Body2"><strong>URL:</strong> @db.Url</RadzenText>
-                            }
-                            <RadzenText TextStyle="TextStyle.Body2"><strong>Host:</strong> @(db.Host ?? "—"):@(db.Port ?? "—")</RadzenText>
-                            <RadzenText TextStyle="TextStyle.Body2"><strong>Database:</strong> @(db.DbName ?? "—")</RadzenText>
-                            <RadzenText TextStyle="TextStyle.Body2"><strong>Username:</strong> @(db.Username ?? "—")</RadzenText>
-                            <RadzenText TextStyle="TextStyle.Body2"><strong>Password:</strong> @MaskSecret(db.Password)</RadzenText>
-                            @if (!string.IsNullOrWhiteSpace(db.Options))
-                            {
-                                <RadzenText TextStyle="TextStyle.Body2"><strong>Options:</strong> @db.Options</RadzenText>
-                            }
-                            @if (db.Primary == true)
-                            {
-                                <RadzenBadge Text="Primary" BadgeStyle="BadgeStyle.Info" />
-                            }
-                        </RadzenStack>
-                    }
-                </RadzenCard>
-            }
-
-            @* ── Datasources ── *@
-            @if (_config.DatasourceConfig != null)
-            {
-                <RadzenCard>
-                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Datasources</RadzenText>
-                    @{
-                        var yaml = DatasourceConfigParser.Serialize(_config.DatasourceConfig);
-                    }
-                    @if (!string.IsNullOrWhiteSpace(yaml))
-                    {
-                        <pre style="max-height: 300px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem;">@yaml</pre>
-                    }
-                </RadzenCard>
-            }
-
-            @* ── Transformations ── *@
-            @if (_config.Transformations is { Count: > 0 })
-            {
-                <RadzenCard>
-                    <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Transformations</RadzenText>
-                    <RadzenDataGrid Data="@_config.Transformations.Select(kv => new { Name = kv.Key, kv.Value.Priority, kv.Value.Confidence, kv.Value.Ttl })" TItem="object" Density="Density.Compact">
-                        <Columns>
-                            <RadzenDataGridColumn Property="Name" Title="Name" />
-                            <RadzenDataGridColumn Property="Priority" Title="Priority" Width="100px" />
-                            <RadzenDataGridColumn Property="Confidence" Title="Confidence" Width="100px" />
-                            <RadzenDataGridColumn Property="Ttl" Title="TTL" Width="100px" />
-                        </Columns>
-                    </RadzenDataGrid>
-                </RadzenCard>
-            }
-
-            @* ── Seed Assets ── *@
-            <RadzenCard>
-                <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Seed Assets</RadzenText>
-                <RadzenStack Gap="0.75rem">
-                    <div>
-                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">FQDNs</RadzenText>
-                        @if (_assets?.Fqdns is { Count: > 0 } fqdns)
-                        {
-                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                                @foreach (var fqdn in fqdns)
-                                {
-                                    <RadzenBadge Text="@fqdn" BadgeStyle="BadgeStyle.Primary" />
-                                }
-                            </RadzenStack>
-                        }
-                        else
-                        {
-                            <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                        }
-                    </div>
-                    <div>
-                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">IP Addresses</RadzenText>
-                        @if (_assets?.IpAddresses is { Count: > 0 } assetIps)
-                        {
-                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                                @foreach (var ip in assetIps)
-                                {
-                                    <RadzenBadge Text="@ip" BadgeStyle="BadgeStyle.Info" />
-                                }
-                            </RadzenStack>
-                        }
-                        else
-                        {
-                            <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                        }
-                    </div>
-                    <div>
-                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Autonomous Systems</RadzenText>
-                        @if (_assets?.AutonomousSystems is { Count: > 0 } assetAsns)
-                        {
-                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                                @foreach (var asn in assetAsns)
-                                {
-                                    <RadzenBadge Text="@($"AS{asn}")" BadgeStyle="BadgeStyle.Info" />
-                                }
-                            </RadzenStack>
-                        }
-                        else
-                        {
-                            <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                        }
-                    </div>
-                    <div>
-                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Netblocks</RadzenText>
-                        @if (_assets?.Netblocks is { Count: > 0 } netblocks)
-                        {
-                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                                @foreach (var nb in netblocks)
-                                {
-                                    <RadzenBadge Text="@nb" BadgeStyle="BadgeStyle.Info" />
-                                }
-                            </RadzenStack>
-                        }
-                        else
-                        {
-                            <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                        }
-                    </div>
-                    <div>
-                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Organizations</RadzenText>
-                        @if (_assets?.Organizations is { Count: > 0 } orgs)
-                        {
-                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                                @foreach (var org in orgs)
-                                {
-                                    <RadzenBadge Text="@org" BadgeStyle="BadgeStyle.Secondary" />
-                                }
-                            </RadzenStack>
-                        }
-                        else
-                        {
-                            <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                        }
-                    </div>
-                    <div>
-                        <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Locations</RadzenText>
-                        @if (_assets?.Locations is { Count: > 0 } locs)
-                        {
-                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                                @foreach (var loc in locs)
-                                {
-                                    <RadzenBadge Text="@loc" BadgeStyle="BadgeStyle.Secondary" />
-                                }
-                            </RadzenStack>
-                        }
-                        else
-                        {
-                            <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                        }
-                    </div>
-                </RadzenStack>
-            </RadzenCard>
-        </RadzenStack>
-    };
 
     private bool _disposed;
 

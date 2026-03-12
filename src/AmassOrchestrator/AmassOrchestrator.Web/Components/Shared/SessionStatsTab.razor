@@ -1,0 +1,61 @@
+<div class="rz-p-4">
+    @if (Session != null)
+    {
+        <ProgressBar Completed="@Session.WorkItemsCompleted" Total="@Session.WorkItemsTotal" IsCompleted="@Session.IsCompleted" ItemsPerSecond="@Session.ItemsPerSecond" />
+        <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2">
+            Progress: @Session.ProgressPercent%
+        </RadzenText>
+    }
+    else if (DbRecord != null)
+    {
+        @if (DbRecord.IsFailed)
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" class="rz-mb-4">
+                @(DbRecord.ErrorMessage ?? "Enumeration failed.")
+            </RadzenAlert>
+        }
+        else if (DbRecord.IsCancelled)
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true" class="rz-mb-4">
+                Enumeration was cancelled.
+            </RadzenAlert>
+        }
+        else if (DbRecord.IsCompleted)
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Success" ShowIcon="true" class="rz-mb-4">
+                Enumeration completed.
+            </RadzenAlert>
+        }
+        <ProgressBar Completed="@DbRecord.WorkItemsCompleted" Total="@DbRecord.WorkItemsTotal" IsCompleted="@DbRecord.IsCompleted" IsFailed="@DbRecord.IsFailed" IsCancelled="@DbRecord.IsCancelled" />
+        <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2">
+            Engine: @DbRecord.EnginePodName
+        </RadzenText>
+        @if (DbRecord.CompletedAtUtc.HasValue)
+        {
+            <RadzenText TextStyle="TextStyle.Body2">
+                Completed: @DbRecord.CompletedAtUtc.Value.ToString("yyyy-MM-dd HH:mm:ss UTC")
+            </RadzenText>
+            @if (HistoricalThroughput > 0)
+            {
+                <RadzenText TextStyle="TextStyle.Body2">
+                    Avg throughput: @HistoricalThroughput items/s
+                </RadzenText>
+            }
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public SessionInfo? Session { get; set; }
+    [Parameter] public SessionRecord? DbRecord { get; set; }
+
+    private double HistoricalThroughput
+    {
+        get
+        {
+            if (DbRecord?.CompletedAtUtc == null || DbRecord.WorkItemsCompleted <= 0) return 0;
+            var duration = (DbRecord.CompletedAtUtc.Value - DbRecord.CreatedAtUtc).TotalSeconds;
+            return duration > 0 ? Math.Round(DbRecord.WorkItemsCompleted / duration, 2) : 0;
+        }
+    }
+}
