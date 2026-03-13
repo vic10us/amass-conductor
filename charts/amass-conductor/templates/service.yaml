@@ -2,6 +2,12 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "amass-conductor.fullname" . }}
+  {{- if .Values.tailscale.enabled }}
+  annotations:
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: {{ .Values.tailscale.hostname | quote }}
+    tailscale.com/tags: {{ .Values.tailscale.tags | quote }}
+  {{- end }}
   labels:
     {{- include "amass-conductor.labels" . | nindent 4 }}
 spec:

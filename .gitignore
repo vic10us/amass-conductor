@@ -85,3 +85,6 @@ coverage/
 *.db
 *.db-shm
 *.db-wal
+
+# Exclude helm values files
+values-*.yaml

@@ -16,6 +16,11 @@ serviceAccount:
   annotations: {}
   name: ""
 
+tailscale:
+  enabled: false
+  hostname: ""
+  tags: ""
+
 rbac:
   create: true
   # Namespace where Amass engine pods run
@@ -60,7 +65,7 @@ orchestrator:
   httpClientTimeoutSeconds: 10
   webSocketBufferSize: 4096
   completionPollThreshold: 5
-  databasePath: App_Data/orchestrator.db
+  databasePath: /orchestrator.db
   maxActiveSessionsPerEngine: 1
   autoDeleteCompletedSessions: true
 
