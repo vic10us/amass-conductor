@@ -1,0 +1,702 @@
+{
+  "metadata": {
+    "source": "github.com/owasp-amass/asset-db@v0.24.2",
+    "description": "OWASP Amass PostgreSQL asset database schema",
+    "postgresqlVersion": "13+",
+    "extensions": ["citext", "pg_trgm", "btree_gin"]
+  },
+  "tables": [
+    {
+      "name": "entity_type_lu",
+      "schema": "public",
+      "description": "Lookup table mapping entity type names to smallint IDs",
+      "columns": [
+        { "name": "id", "type": "smallint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "BY DEFAULT" },
+        { "name": "name", "type": "text", "nullable": false, "unique": true }
+      ],
+      "indexes": [
+        { "name": "entity_type_lu_name_lower_uidx", "columns": ["lower(name)"], "unique": true }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "edge_type_lu",
+      "schema": "public",
+      "description": "Lookup table mapping edge type names to smallint IDs",
+      "columns": [
+        { "name": "id", "type": "smallint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "BY DEFAULT" },
+        { "name": "name", "type": "text", "nullable": false, "unique": true }
+      ],
+      "indexes": [
+        { "name": "edge_type_lu_name_lower_uidx", "columns": ["lower(name)"], "unique": true }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "tag_type_lu",
+      "schema": "public",
+      "description": "Lookup table mapping tag type names to smallint IDs",
+      "columns": [
+        { "name": "id", "type": "smallint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "BY DEFAULT" },
+        { "name": "name", "type": "text", "nullable": false, "unique": true }
+      ],
+      "indexes": [
+        { "name": "tag_type_lu_name_lower_uidx", "columns": ["lower(name)"], "unique": true }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "entity",
+      "schema": "public",
+      "description": "Central entity mapping table — every asset row gets a corresponding entity row",
+      "columns": [
+        { "name": "entity_id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "etype_id", "type": "smallint", "nullable": false },
+        { "name": "natural_key", "type": "citext", "nullable": false },
+        { "name": "table_name", "type": "citext", "nullable": false },
+        { "name": "row_id", "type": "bigint", "nullable": false }
+      ],
+      "indexes": [
+        { "name": "idx_entity_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_entity_updated_at", "columns": ["updated_at"], "unique": false }
+      ],
+      "foreignKeys": [
+        { "columns": ["etype_id"], "referencedTable": "entity_type_lu", "referencedColumns": ["id"] }
+      ],
+      "uniqueConstraints": [
+        { "columns": ["etype_id", "row_id"] },
+        { "columns": ["etype_id", "natural_key"] },
+        { "columns": ["table_name", "row_id"] }
+      ]
+    },
+    {
+      "name": "edge",
+      "schema": "public",
+      "description": "Graph edges connecting two entities",
+      "columns": [
+        { "name": "edge_id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "etype_id", "type": "smallint", "nullable": false },
+        { "name": "label", "type": "citext", "nullable": false },
+        { "name": "content", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" },
+        { "name": "from_entity_id", "type": "bigint", "nullable": false },
+        { "name": "to_entity_id", "type": "bigint", "nullable": false }
+      ],
+      "indexes": [
+        { "name": "idx_edge_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_edge_updated_at", "columns": ["updated_at"], "unique": false },
+        { "name": "idx_edge_etype", "columns": ["etype_id"], "unique": false },
+        { "name": "gin_edge_content", "columns": ["content"], "unique": false, "method": "gin", "opclass": "jsonb_path_ops" },
+        { "name": "idx_edge_from_id", "columns": ["from_entity_id"], "unique": false },
+        { "name": "idx_edge_to_id", "columns": ["to_entity_id"], "unique": false },
+        { "name": "idx_edge_from", "columns": ["from_entity_id", "etype_id", "to_entity_id"], "unique": false },
+        { "name": "idx_edge_to", "columns": ["to_entity_id", "etype_id", "from_entity_id"], "unique": false }
+      ],
+      "foreignKeys": [
+        { "columns": ["etype_id"], "referencedTable": "edge_type_lu", "referencedColumns": ["id"] },
+        { "columns": ["from_entity_id"], "referencedTable": "entity", "referencedColumns": ["entity_id"], "onDelete": "CASCADE" },
+        { "columns": ["to_entity_id"], "referencedTable": "entity", "referencedColumns": ["entity_id"], "onDelete": "CASCADE" }
+      ],
+      "uniqueConstraints": [
+        { "columns": ["etype_id", "from_entity_id", "to_entity_id", "label"] }
+      ],
+      "checkConstraints": [
+        { "expression": "from_entity_id <> to_entity_id", "description": "No self-loops" }
+      ]
+    },
+    {
+      "name": "entity_tag",
+      "schema": "public",
+      "description": "Key-value tags attached to entities (graph nodes)",
+      "columns": [
+        { "name": "tag_id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "entity_id", "type": "bigint", "nullable": false },
+        { "name": "ttype_id", "type": "smallint", "nullable": false },
+        { "name": "property_name", "type": "text", "nullable": false },
+        { "name": "property_value", "type": "text", "nullable": false },
+        { "name": "content", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_entity_tag_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_entity_tag_updated_at", "columns": ["updated_at"], "unique": false },
+        { "name": "idx_entity_tag_entity_updated", "columns": ["entity_id", "updated_at DESC"], "unique": false },
+        { "name": "idx_entity_tag_entity_id", "columns": ["entity_id"], "unique": false },
+        { "name": "idx_entity_tag_ttype_id", "columns": ["ttype_id"], "unique": false },
+        { "name": "idx_entity_tag_property_name", "columns": ["property_name"], "unique": false },
+        { "name": "idx_entity_tag_tt_name", "columns": ["ttype_id", "property_name"], "unique": false },
+        { "name": "idx_entity_tag_property_name_value", "columns": ["property_name", "property_value"], "unique": false },
+        { "name": "idx_entity_tag_ttype_name_value", "columns": ["ttype_id", "property_name", "property_value"], "unique": false },
+        { "name": "gin_entity_tag_content", "columns": ["content"], "unique": false, "method": "gin", "opclass": "jsonb_path_ops" }
+      ],
+      "foreignKeys": [
+        { "columns": ["entity_id"], "referencedTable": "entity", "referencedColumns": ["entity_id"], "onDelete": "CASCADE" },
+        { "columns": ["ttype_id"], "referencedTable": "tag_type_lu", "referencedColumns": ["id"] }
+      ],
+      "uniqueConstraints": [
+        { "columns": ["entity_id", "ttype_id", "property_name", "property_value"] }
+      ]
+    },
+    {
+      "name": "edge_tag",
+      "schema": "public",
+      "description": "Key-value tags attached to edges (graph links)",
+      "columns": [
+        { "name": "tag_id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "edge_id", "type": "bigint", "nullable": false },
+        { "name": "ttype_id", "type": "smallint", "nullable": false },
+        { "name": "property_name", "type": "text", "nullable": false },
+        { "name": "property_value", "type": "text", "nullable": false },
+        { "name": "content", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_edge_tag_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_edge_tag_updated_at", "columns": ["updated_at"], "unique": false },
+        { "name": "idx_edge_tag_edge_updated", "columns": ["edge_id", "updated_at DESC"], "unique": false },
+        { "name": "idx_edge_tag_edge_id", "columns": ["edge_id"], "unique": false },
+        { "name": "idx_edge_tag_ttype_id", "columns": ["ttype_id"], "unique": false },
+        { "name": "idx_edge_tag_property_name", "columns": ["property_name"], "unique": false },
+        { "name": "idx_edge_tag_tt_name", "columns": ["ttype_id", "property_name"], "unique": false },
+        { "name": "idx_edge_tag_property_name_value", "columns": ["property_name", "property_value"], "unique": false },
+        { "name": "idx_edge_tag_ttype_name_value", "columns": ["ttype_id", "property_name", "property_value"], "unique": false },
+        { "name": "gin_edge_tag_content", "columns": ["content"], "unique": false, "method": "gin", "opclass": "jsonb_path_ops" }
+      ],
+      "foreignKeys": [
+        { "columns": ["edge_id"], "referencedTable": "edge", "referencedColumns": ["edge_id"], "onDelete": "CASCADE" },
+        { "columns": ["ttype_id"], "referencedTable": "tag_type_lu", "referencedColumns": ["id"] }
+      ],
+      "uniqueConstraints": [
+        { "columns": ["edge_id", "ttype_id", "property_name", "property_value"] }
+      ]
+    },
+    {
+      "name": "account",
+      "schema": "public",
+      "description": "User accounts discovered during enumeration",
+      "entityType": "account",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "unique_id", "type": "text", "nullable": false, "unique": true },
+        { "name": "account_type", "type": "text", "nullable": false },
+        { "name": "username", "type": "text", "nullable": true },
+        { "name": "account_number", "type": "text", "nullable": true },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_account_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_account_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false },
+        { "name": "idx_account_account_type", "columns": ["account_type"], "unique": false },
+        { "name": "idx_account_username", "columns": ["username"], "unique": false },
+        { "name": "idx_account_account_number", "columns": ["account_number"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "autnumrecord",
+      "schema": "public",
+      "description": "WHOIS autonomous number (ASN) registry records",
+      "entityType": "autnumrecord",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "handle", "type": "text", "nullable": false, "unique": true },
+        { "name": "asn", "type": "integer", "nullable": false, "unique": true },
+        { "name": "record_name", "type": "text", "nullable": true },
+        { "name": "whois_server", "type": "citext", "nullable": true },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_autnumrecord_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_autnumrecord_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false },
+        { "name": "idx_autnumrecord_name", "columns": ["record_name"], "unique": false },
+        { "name": "idx_autnumrecord_whois_server", "columns": ["whois_server"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "autonomoussystem",
+      "schema": "public",
+      "description": "Autonomous systems identified by ASN",
+      "entityType": "autonomoussystem",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "asn", "type": "integer", "nullable": false, "unique": true },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_autonomoussystem_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_autonomoussystem_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "contactrecord",
+      "schema": "public",
+      "description": "Contact records from WHOIS or other sources",
+      "entityType": "contactrecord",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "discovered_at", "type": "text", "nullable": false, "unique": true },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_contactrecord_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_contactrecord_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "domainrecord",
+      "schema": "public",
+      "description": "Domain registration records from WHOIS",
+      "entityType": "domainrecord",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "domain", "type": "citext", "nullable": false, "unique": true },
+        { "name": "record_name", "type": "text", "nullable": true },
+        { "name": "punycode", "type": "text", "nullable": true },
+        { "name": "extension", "type": "text", "nullable": true },
+        { "name": "whois_server", "type": "citext", "nullable": true },
+        { "name": "object_id", "type": "text", "nullable": true },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_domainrecord_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_domainrecord_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false },
+        { "name": "idx_domainrecord_name", "columns": ["record_name"], "unique": false },
+        { "name": "idx_domainrecord_extension", "columns": ["extension"], "unique": false },
+        { "name": "idx_domainrecord_punycode", "columns": ["punycode"], "unique": false },
+        { "name": "idx_domainrecord_whois_server", "columns": ["whois_server"], "unique": false },
+        { "name": "idx_domainrecord_object_id", "columns": ["object_id"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "file",
+      "schema": "public",
+      "description": "Files discovered during enumeration",
+      "entityType": "file",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "file_url", "type": "text", "nullable": false, "unique": true },
+        { "name": "basename", "type": "text", "nullable": true },
+        { "name": "file_type", "type": "text", "nullable": true },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_file_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_file_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false },
+        { "name": "idx_file_basename", "columns": ["basename"], "unique": false },
+        { "name": "idx_file_file_type", "columns": ["file_type"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "fqdn",
+      "schema": "public",
+      "description": "Fully qualified domain names",
+      "entityType": "fqdn",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "fqdn", "type": "citext", "nullable": false, "unique": true },
+        { "name": "reverse_fqdn", "type": "text", "nullable": false, "generated": true, "generatedExpression": "reverse((fqdn)::text)", "generatedType": "STORED" },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_fqdn_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_fqdn_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false },
+        { "name": "idx_fqdn_reverse_fqdn", "columns": ["reverse_fqdn"], "unique": false, "method": "btree", "opclass": "text_pattern_ops" }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "fundstransfer",
+      "schema": "public",
+      "description": "Financial transfer records",
+      "entityType": "fundstransfer",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "unique_id", "type": "text", "nullable": false, "unique": true },
+        { "name": "amount", "type": "numeric", "nullable": false },
+        { "name": "reference_number", "type": "text", "nullable": true },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_fundstransfer_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_fundstransfer_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false },
+        { "name": "idx_fundstransfer_amount", "columns": ["amount"], "unique": false },
+        { "name": "idx_fundstransfer_reference_number", "columns": ["reference_number"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "identifier",
+      "schema": "public",
+      "description": "Generic identifiers (CVE, CPE, etc.)",
+      "entityType": "identifier",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "unique_id", "type": "text", "nullable": false, "unique": true },
+        { "name": "id_value", "type": "text", "nullable": false },
+        { "name": "id_type", "type": "text", "nullable": false },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_identifier_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_identifier_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false },
+        { "name": "idx_identifier_id_value", "columns": ["id_value"], "unique": false },
+        { "name": "idx_identifier_id_type", "columns": ["id_type"], "unique": false }
+      ],
+      "foreignKeys": [],
+      "uniqueConstraints": [
+        { "columns": ["id_value", "id_type"] }
+      ]
+    },
+    {
+      "name": "ipaddress",
+      "schema": "public",
+      "description": "IP addresses (IPv4 and IPv6)",
+      "entityType": "ipaddress",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "ip_address", "type": "inet", "nullable": false, "unique": true },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_ipaddress_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_ipaddress_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "ipnetrecord",
+      "schema": "public",
+      "description": "IP network registration records from WHOIS",
+      "entityType": "ipnetrecord",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "record_cidr", "type": "cidr", "nullable": false, "unique": true },
+        { "name": "record_name", "type": "text", "nullable": false },
+        { "name": "handle", "type": "text", "nullable": false, "unique": true },
+        { "name": "whois_server", "type": "citext", "nullable": true },
+        { "name": "parent_handle", "type": "text", "nullable": true },
+        { "name": "start_address", "type": "inet", "nullable": true },
+        { "name": "end_address", "type": "inet", "nullable": true },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_ipnetrecord_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_ipnetrecord_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false },
+        { "name": "idx_ipnetrecord_name", "columns": ["record_name"], "unique": false },
+        { "name": "idx_ipnetrecord_start_address", "columns": ["start_address"], "unique": false },
+        { "name": "idx_ipnetrecord_end_address", "columns": ["end_address"], "unique": false },
+        { "name": "idx_ipnetrecord_whois_server", "columns": ["whois_server"], "unique": false },
+        { "name": "idx_ipnetrecord_parent_handle", "columns": ["parent_handle"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "location",
+      "schema": "public",
+      "description": "Physical locations (addresses)",
+      "entityType": "location",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "street_address", "type": "text", "nullable": false, "unique": true },
+        { "name": "city", "type": "text", "nullable": false },
+        { "name": "country", "type": "text", "nullable": false },
+        { "name": "unit", "type": "text", "nullable": true },
+        { "name": "building", "type": "text", "nullable": true },
+        { "name": "province", "type": "text", "nullable": true },
+        { "name": "locality", "type": "text", "nullable": true },
+        { "name": "postal_code", "type": "text", "nullable": true },
+        { "name": "street_name", "type": "text", "nullable": true },
+        { "name": "building_number", "type": "text", "nullable": true },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_location_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_location_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false },
+        { "name": "idx_location_building", "columns": ["building"], "unique": false },
+        { "name": "idx_location_building_number", "columns": ["building_number"], "unique": false },
+        { "name": "idx_location_province", "columns": ["province"], "unique": false },
+        { "name": "idx_location_street_name", "columns": ["street_name"], "unique": false },
+        { "name": "idx_location_unit", "columns": ["unit"], "unique": false },
+        { "name": "idx_location_locality", "columns": ["locality"], "unique": false },
+        { "name": "idx_location_city", "columns": ["city"], "unique": false },
+        { "name": "idx_location_country", "columns": ["country"], "unique": false },
+        { "name": "idx_location_postal_code", "columns": ["postal_code"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "netblock",
+      "schema": "public",
+      "description": "Network blocks (CIDR ranges)",
+      "entityType": "netblock",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "netblock_cidr", "type": "cidr", "nullable": false, "unique": true },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_netblock_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_netblock_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "organization",
+      "schema": "public",
+      "description": "Organizations discovered via WHOIS, certificates, etc.",
+      "entityType": "organization",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "unique_id", "type": "text", "nullable": false, "unique": true },
+        { "name": "org_name", "type": "text", "nullable": false },
+        { "name": "legal_name", "type": "text", "nullable": true },
+        { "name": "jurisdiction", "type": "text", "nullable": true },
+        { "name": "registration_id", "type": "text", "nullable": true },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_organization_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_organization_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false },
+        { "name": "idx_organization_org_name", "columns": ["org_name"], "unique": false },
+        { "name": "idx_organization_legal_name", "columns": ["legal_name"], "unique": false },
+        { "name": "idx_organization_jurisdiction", "columns": ["jurisdiction"], "unique": false },
+        { "name": "idx_organization_registration_id", "columns": ["registration_id"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "person",
+      "schema": "public",
+      "description": "People discovered via WHOIS contacts, certificates, etc.",
+      "entityType": "person",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "unique_id", "type": "text", "nullable": false, "unique": true },
+        { "name": "full_name", "type": "text", "nullable": true },
+        { "name": "first_name", "type": "text", "nullable": true },
+        { "name": "family_name", "type": "text", "nullable": true },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_person_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_person_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false },
+        { "name": "idx_person_full_name", "columns": ["full_name"], "unique": false },
+        { "name": "idx_person_first_name", "columns": ["first_name"], "unique": false },
+        { "name": "idx_person_family_name", "columns": ["family_name"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "phone",
+      "schema": "public",
+      "description": "Phone numbers in E.164 format",
+      "entityType": "phone",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "e164", "type": "text", "nullable": false, "unique": true },
+        { "name": "country_code", "type": "integer", "nullable": true },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_phone_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_phone_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false },
+        { "name": "idx_phone_country_code", "columns": ["country_code"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "product",
+      "schema": "public",
+      "description": "Software or hardware products",
+      "entityType": "product",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "unique_id", "type": "text", "nullable": false, "unique": true },
+        { "name": "product_name", "type": "text", "nullable": false },
+        { "name": "product_type", "type": "text", "nullable": false },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_product_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_product_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false },
+        { "name": "idx_product_name", "columns": ["product_name"], "unique": false },
+        { "name": "idx_product_type", "columns": ["product_type"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "productrelease",
+      "schema": "public",
+      "description": "Specific product version releases",
+      "entityType": "productrelease",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "release_name", "type": "text", "nullable": false, "unique": true },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_productrelease_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_productrelease_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "service",
+      "schema": "public",
+      "description": "Network services discovered during scanning",
+      "entityType": "service",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "unique_id", "type": "text", "nullable": false, "unique": true },
+        { "name": "service_type", "type": "text", "nullable": false },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_service_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_service_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false },
+        { "name": "idx_service_service_type", "columns": ["service_type"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "tlscertificate",
+      "schema": "public",
+      "description": "TLS/SSL certificates",
+      "entityType": "tlscertificate",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "serial_number", "type": "text", "nullable": false, "unique": true },
+        { "name": "subject_common_name", "type": "text", "nullable": false },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_tlscertificate_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_tlscertificate_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false },
+        { "name": "idx_tlscertificate_subject_common_name", "columns": ["subject_common_name"], "unique": false }
+      ],
+      "foreignKeys": []
+    },
+    {
+      "name": "url",
+      "schema": "public",
+      "description": "URLs discovered during enumeration",
+      "entityType": "url",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false, "primaryKey": true, "identity": true, "identityType": "ALWAYS" },
+        { "name": "created_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "updated_at", "type": "timestamp without time zone", "nullable": false, "default": "now()" },
+        { "name": "raw_url", "type": "text", "nullable": false, "unique": true },
+        { "name": "scheme", "type": "text", "nullable": true },
+        { "name": "attrs", "type": "jsonb", "nullable": false, "default": "'{}'::jsonb" }
+      ],
+      "indexes": [
+        { "name": "idx_url_created_at", "columns": ["created_at"], "unique": false },
+        { "name": "idx_url_updated_at_id_desc", "columns": ["updated_at DESC", "id DESC"], "unique": false },
+        { "name": "idx_url_scheme", "columns": ["scheme"], "unique": false }
+      ],
+      "foreignKeys": []
+    }
+  ],
+  "lookupValues": {
+    "entity_types": [
+      "account", "autnumrecord", "autonomoussystem", "contactrecord", "domainrecord",
+      "file", "fqdn", "fundstransfer", "identifier", "ipaddress", "ipnetrecord",
+      "location", "netblock", "organization", "person", "phone", "product",
+      "productrelease", "service", "tlscertificate", "url"
+    ],
+    "edge_types": [
+      "basicdnsrelation", "portrelation", "prefdnsrelation", "simplerelation", "srvdnsrelation"
+    ],
+    "tag_types": [
+      "dnsrecordproperty", "simpleproperty", "sourceproperty", "vulnproperty"
+    ]
+  },
+  "relationships": {
+    "edgeModel": "Edges connect two entity rows via from_entity_id and to_entity_id. Each edge has a type (from edge_type_lu) and a label (citext). The edge content column (jsonb) carries relationship-specific data. Self-loops are prohibited.",
+    "entityAssetMapping": "Each asset table row is registered in the entity table via entity_upsert(). The entity row stores etype_id (from entity_type_lu), natural_key, table_name, and row_id to link back to the source asset.",
+    "tagModel": "Tags are key-value pairs (property_name, property_value) attached to entities or edges. Each tag has a type (from tag_type_lu) and an optional content JSONB payload. Tags provide metadata like data source attribution, DNS record properties, and vulnerability information."
+  },
+  "functions": {
+    "coreGraph": [
+      "null_safe_attrs(jsonb)",
+      "get_entity_type_id(text)",
+      "get_edge_type_id(text)",
+      "entity_upsert(citext, citext, citext, bigint)",
+      "entity_get_by_id(bigint)",
+      "edge_upsert(text, text, bigint, bigint, jsonb)",
+      "edge_get_id(text, text, bigint, bigint)",
+      "edges_updated_since(timestamp)",
+      "edges_for_entity(bigint, text, timestamp, text[])",
+      "entity_tag_upsert(bigint, text, text, text, jsonb)",
+      "get_entity_tag_by_id(bigint)",
+      "entity_get_tags(bigint, timestamp, text[])",
+      "edge_tag_upsert(bigint, text, text, text, jsonb)",
+      "get_edge_tag_by_id(bigint)",
+      "edge_get_tags(bigint, timestamp, text[])"
+    ],
+    "perAssetPattern": [
+      "{type}_upsert_entity_json(jsonb) → bigint",
+      "{type}_upsert(...) → bigint",
+      "{type}_upsert_json(jsonb) → bigint",
+      "{type}_get_by_id(bigint) → row",
+      "{type}_find_by_content(jsonb, timestamp, integer) → TABLE",
+      "{type}_updated_since(timestamp, integer) → TABLE"
+    ],
+    "assetTypes": [
+      "account", "autnumrecord", "autonomoussystem", "contactrecord", "domainrecord",
+      "file", "fqdn", "fundstransfer", "identifier", "ipaddress", "ipnetrecord",
+      "location", "netblock", "organization", "person", "phone", "product",
+      "productrelease", "service", "tlscertificate", "url"
+    ]
+  }
+}
