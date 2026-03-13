@@ -1,0 +1,17 @@
+<RadzenBadge BadgeStyle="@GetBadgeStyle()" Text="@PodPhase.ToString()" />
+
+@code {
+    [Parameter] public PodPhase PodPhase { get; set; }
+
+    public BadgeStyle GetBadgeStyle()
+    {
+        return PodPhase switch
+        {
+            PodPhase.Pending => BadgeStyle.Warning,
+            PodPhase.Running => BadgeStyle.Success,
+            PodPhase.Succeeded => BadgeStyle.Primary,
+            PodPhase.Failed => BadgeStyle.Danger,
+            _ => BadgeStyle.Secondary
+        };
+    }
+}

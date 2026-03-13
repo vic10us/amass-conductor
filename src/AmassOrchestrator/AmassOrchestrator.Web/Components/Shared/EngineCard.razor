@@ -5,14 +5,18 @@
         <RadzenStack Gap="0.25rem">
             <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">@State.Pod.PodName</RadzenText>
             <RadzenText TextStyle="TextStyle.Caption">
-                @State.Pod.PodIP - @State.Pod.Phase
+                Private IP: @State.Pod.PodIP
+            </RadzenText>
+            <RadzenText TextStyle="TextStyle.Caption">
                 @if (State.AnnotationInfo?.PublicIP is not null)
                 {
-                    @: | Public: @State.AnnotationInfo.PublicIP
+                    @: Public IP: @State.AnnotationInfo.PublicIP
                 }
             </RadzenText>
         </RadzenStack>
-        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.25rem">
+        <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.End" Gap="0.25rem">
+            <PodPhaseBadge PodPhase="@State.Pod.PodPhase()" />
+            <HealthBadge IsHealthy="@State.IsHealthy" IsReady="@State.Pod.IsReady" />
             @if (State.AnnotationInfo is not null)
             {
                 @if (State.AnnotationInfo.CheckStatus == IpCheckStatus.Error)
@@ -28,7 +32,6 @@
                     <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="Direct" />
                 }
             }
-            <HealthBadge IsHealthy="@State.IsHealthy" IsReady="@State.Pod.IsReady" />
         </RadzenStack>
     </RadzenStack>
     <RadzenText TextStyle="TextStyle.Body2" class="rz-mt-2">

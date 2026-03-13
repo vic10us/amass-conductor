@@ -25,7 +25,7 @@ else
     <RadzenRow Gap="1rem">
         @foreach (var state in _states.OrderBy(s => s.Pod.Ordinal))
         {
-            <RadzenColumn Size="12" SizeMD="6" SizeLG="4">
+            <RadzenColumn Size="12" SizeMD="4" SizeLG="3" SizeXL="3">
                 <EngineCard State="@state" />
             </RadzenColumn>
         }
