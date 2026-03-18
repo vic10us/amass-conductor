@@ -3,6 +3,7 @@
 @using AmassOrchestrator.Web.Configuration
 @using AmassOrchestrator.Web.Models
 @using AmassOrchestrator.Web.Services
+@using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.Extensions.Options
 @inject DialogService DialogService
 @inject DefaultsLoaderService DefaultsLoader
@@ -42,24 +43,120 @@
                 <RadzenText TextStyle="TextStyle.Caption">
                     When checked, scope domains are automatically added as FQDN seed assets for enumeration.
                 </RadzenText>
-                <RadzenFormField Text="FQDNs (comma or newline separated)">
-                    <RadzenTextArea @bind-Value="@_assetFqdns" Rows="3" Style="width: 100%;" />
-                </RadzenFormField>
-                <RadzenFormField Text="IP Addresses (comma or newline separated)">
-                    <RadzenTextArea @bind-Value="@_assetIpAddresses" Rows="3" Style="width: 100%;" />
-                </RadzenFormField>
-                <RadzenFormField Text="ASNs (comma or newline separated, e.g. 13335)">
-                    <RadzenTextArea @bind-Value="@_assetAsns" Rows="2" Style="width: 100%;" />
-                </RadzenFormField>
-                <RadzenFormField Text="Netblocks (comma or newline separated, e.g. 192.0.2.0/24)">
-                    <RadzenTextArea @bind-Value="@_assetNetblocks" Rows="2" Style="width: 100%;" />
-                </RadzenFormField>
-                <RadzenFormField Text="Organizations (comma or newline separated)">
-                    <RadzenTextArea @bind-Value="@_assetOrganizations" Rows="2" Style="width: 100%;" />
-                </RadzenFormField>
-                <RadzenFormField Text="Locations (comma or newline separated)">
-                    <RadzenTextArea @bind-Value="@_assetLocations" Rows="2" Style="width: 100%;" />
-                </RadzenFormField>
+                @if (_fileFqdnsName is not null)
+                {
+                    <RadzenFormField Text="FQDNs" Style="width: 100%;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem;">
+                            <RadzenText TextStyle="TextStyle.Body2" Text="@($"{_fileFqdnsName} ({_fileFqdnsCount:N0} entries)")" />
+                            <RadzenButton Text="Clear" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text" Size="ButtonSize.ExtraSmall" Click="@(() => ClearAssetFile(nameof(_fileFqdns)))" />
+                        </div>
+                    </RadzenFormField>
+                }
+                else
+                {
+                    <RadzenFormField Text="FQDNs (comma or newline separated)">
+                        <RadzenTextArea @bind-Value="@_assetFqdns" Rows="3" Style="width: 100%;" />
+                    </RadzenFormField>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: -0.5rem;">
+                        <InputFile OnChange="@(e => OnAssetFileUpload(e, nameof(_fileFqdns)))" accept=".txt,.csv" />
+                        <RadzenText TextStyle="TextStyle.Caption" Text="Upload .txt or .csv file" />
+                    </div>
+                }
+                @if (_fileIpAddressesName is not null)
+                {
+                    <RadzenFormField Text="IP Addresses" Style="width: 100%;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem;">
+                            <RadzenText TextStyle="TextStyle.Body2" Text="@($"{_fileIpAddressesName} ({_fileIpAddressesCount:N0} entries)")" />
+                            <RadzenButton Text="Clear" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text" Size="ButtonSize.ExtraSmall" Click="@(() => ClearAssetFile(nameof(_fileIpAddresses)))" />
+                        </div>
+                    </RadzenFormField>
+                }
+                else
+                {
+                    <RadzenFormField Text="IP Addresses (comma or newline separated)">
+                        <RadzenTextArea @bind-Value="@_assetIpAddresses" Rows="3" Style="width: 100%;" />
+                    </RadzenFormField>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: -0.5rem;">
+                        <InputFile OnChange="@(e => OnAssetFileUpload(e, nameof(_fileIpAddresses)))" accept=".txt,.csv" />
+                        <RadzenText TextStyle="TextStyle.Caption" Text="Upload .txt or .csv file" />
+                    </div>
+                }
+                @if (_fileAsnsName is not null)
+                {
+                    <RadzenFormField Text="ASNs" Style="width: 100%;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem;">
+                            <RadzenText TextStyle="TextStyle.Body2" Text="@($"{_fileAsnsName} ({_fileAsnsCount:N0} entries)")" />
+                            <RadzenButton Text="Clear" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text" Size="ButtonSize.ExtraSmall" Click="@(() => ClearAssetFile(nameof(_fileAsns)))" />
+                        </div>
+                    </RadzenFormField>
+                }
+                else
+                {
+                    <RadzenFormField Text="ASNs (comma or newline separated, e.g. 13335)">
+                        <RadzenTextArea @bind-Value="@_assetAsns" Rows="2" Style="width: 100%;" />
+                    </RadzenFormField>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: -0.5rem;">
+                        <InputFile OnChange="@(e => OnAssetFileUpload(e, nameof(_fileAsns)))" accept=".txt,.csv" />
+                        <RadzenText TextStyle="TextStyle.Caption" Text="Upload .txt or .csv file" />
+                    </div>
+                }
+                @if (_fileNetblocksName is not null)
+                {
+                    <RadzenFormField Text="Netblocks" Style="width: 100%;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem;">
+                            <RadzenText TextStyle="TextStyle.Body2" Text="@($"{_fileNetblocksName} ({_fileNetblocksCount:N0} entries)")" />
+                            <RadzenButton Text="Clear" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text" Size="ButtonSize.ExtraSmall" Click="@(() => ClearAssetFile(nameof(_fileNetblocks)))" />
+                        </div>
+                    </RadzenFormField>
+                }
+                else
+                {
+                    <RadzenFormField Text="Netblocks (comma or newline separated, e.g. 192.0.2.0/24)">
+                        <RadzenTextArea @bind-Value="@_assetNetblocks" Rows="2" Style="width: 100%;" />
+                    </RadzenFormField>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: -0.5rem;">
+                        <InputFile OnChange="@(e => OnAssetFileUpload(e, nameof(_fileNetblocks)))" accept=".txt,.csv" />
+                        <RadzenText TextStyle="TextStyle.Caption" Text="Upload .txt or .csv file" />
+                    </div>
+                }
+                @if (_fileOrganizationsName is not null)
+                {
+                    <RadzenFormField Text="Organizations" Style="width: 100%;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem;">
+                            <RadzenText TextStyle="TextStyle.Body2" Text="@($"{_fileOrganizationsName} ({_fileOrganizationsCount:N0} entries)")" />
+                            <RadzenButton Text="Clear" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text" Size="ButtonSize.ExtraSmall" Click="@(() => ClearAssetFile(nameof(_fileOrganizations)))" />
+                        </div>
+                    </RadzenFormField>
+                }
+                else
+                {
+                    <RadzenFormField Text="Organizations (comma or newline separated)">
+                        <RadzenTextArea @bind-Value="@_assetOrganizations" Rows="2" Style="width: 100%;" />
+                    </RadzenFormField>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: -0.5rem;">
+                        <InputFile OnChange="@(e => OnAssetFileUpload(e, nameof(_fileOrganizations)))" accept=".txt,.csv" />
+                        <RadzenText TextStyle="TextStyle.Caption" Text="Upload .txt or .csv file" />
+                    </div>
+                }
+                @if (_fileLocationsName is not null)
+                {
+                    <RadzenFormField Text="Locations" Style="width: 100%;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem;">
+                            <RadzenText TextStyle="TextStyle.Body2" Text="@($"{_fileLocationsName} ({_fileLocationsCount:N0} entries)")" />
+                            <RadzenButton Text="Clear" ButtonStyle="ButtonStyle.Danger" Variant="Variant.Text" Size="ButtonSize.ExtraSmall" Click="@(() => ClearAssetFile(nameof(_fileLocations)))" />
+                        </div>
+                    </RadzenFormField>
+                }
+                else
+                {
+                    <RadzenFormField Text="Locations (comma or newline separated)">
+                        <RadzenTextArea @bind-Value="@_assetLocations" Rows="2" Style="width: 100%;" />
+                    </RadzenFormField>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: -0.5rem;">
+                        <InputFile OnChange="@(e => OnAssetFileUpload(e, nameof(_fileLocations)))" accept=".txt,.csv" />
+                        <RadzenText TextStyle="TextStyle.Caption" Text="Upload .txt or .csv file" />
+                    </div>
+                }
             </RadzenStack>
         </RadzenTabsItem>
 
@@ -277,6 +374,26 @@
     private string _assetOrganizations = string.Empty;
     private string _assetLocations = string.Empty;
 
+    // Server-side file content (never sent to the client)
+    private string _fileFqdns = string.Empty;
+    private string? _fileFqdnsName;
+    private int _fileFqdnsCount;
+    private string _fileIpAddresses = string.Empty;
+    private string? _fileIpAddressesName;
+    private int _fileIpAddressesCount;
+    private string _fileAsns = string.Empty;
+    private string? _fileAsnsName;
+    private int _fileAsnsCount;
+    private string _fileNetblocks = string.Empty;
+    private string? _fileNetblocksName;
+    private int _fileNetblocksCount;
+    private string _fileOrganizations = string.Empty;
+    private string? _fileOrganizationsName;
+    private int _fileOrganizationsCount;
+    private string _fileLocations = string.Empty;
+    private string? _fileLocationsName;
+    private int _fileLocationsCount;
+
     protected override void OnInitialized()
     {
         _bruteForceWordlist = DefaultsLoader.GetBruteForceWordlist();
@@ -289,12 +406,12 @@
 
         if (InitialAssets != null)
         {
-            _assetFqdns = string.Join("\n", InitialAssets.Fqdns);
-            _assetIpAddresses = string.Join("\n", InitialAssets.IpAddresses);
-            _assetAsns = string.Join("\n", InitialAssets.AutonomousSystems);
-            _assetNetblocks = string.Join("\n", InitialAssets.Netblocks);
-            _assetOrganizations = string.Join("\n", InitialAssets.Organizations);
-            _assetLocations = string.Join("\n", InitialAssets.Locations);
+            LoadAssetList(InitialAssets.Fqdns, v => _assetFqdns = v, v => _fileFqdns = v, n => _fileFqdnsName = n, c => _fileFqdnsCount = c);
+            LoadAssetList(InitialAssets.IpAddresses, v => _assetIpAddresses = v, v => _fileIpAddresses = v, n => _fileIpAddressesName = n, c => _fileIpAddressesCount = c);
+            LoadAssetList(InitialAssets.AutonomousSystems.Select(a => a.ToString()).ToList(), v => _assetAsns = v, v => _fileAsns = v, n => _fileAsnsName = n, c => _fileAsnsCount = c);
+            LoadAssetList(InitialAssets.Netblocks, v => _assetNetblocks = v, v => _fileNetblocks = v, n => _fileNetblocksName = n, c => _fileNetblocksCount = c);
+            LoadAssetList(InitialAssets.Organizations, v => _assetOrganizations = v, v => _fileOrganizations = v, n => _fileOrganizationsName = n, c => _fileOrganizationsCount = c);
+            LoadAssetList(InitialAssets.Locations, v => _assetLocations = v, v => _fileLocations = v, n => _fileLocationsName = n, c => _fileLocationsCount = c);
         }
         if (InitialSubmitDomainsAsFqdns.HasValue)
             _submitDomainsAsFqdnAssets = InitialSubmitDomainsAsFqdns.Value;
@@ -392,12 +509,12 @@
         var domains = ParseStringList(_domains);
         var assetObj = new SeedAssets
         {
-            Fqdns = ParseStringList(_assetFqdns),
-            IpAddresses = ParseStringList(_assetIpAddresses),
-            AutonomousSystems = ParseIntList(_assetAsns),
-            Netblocks = ParseStringList(_assetNetblocks),
-            Organizations = ParseStringList(_assetOrganizations),
-            Locations = ParseStringList(_assetLocations)
+            Fqdns = ParseStringList(MergeText(_assetFqdns, _fileFqdns)),
+            IpAddresses = ParseStringList(MergeText(_assetIpAddresses, _fileIpAddresses)),
+            AutonomousSystems = ParseIntList(MergeText(_assetAsns, _fileAsns)),
+            Netblocks = ParseStringList(MergeText(_assetNetblocks, _fileNetblocks)),
+            Organizations = ParseStringList(MergeText(_assetOrganizations, _fileOrganizations)),
+            Locations = ParseStringList(MergeText(_assetLocations, _fileLocations))
         };
 
         if (domains.Count == 0 && !assetObj.HasAny())
@@ -587,6 +704,68 @@
             .Select(s => System.Net.IPAddress.TryParse(s, out var addr) ? addr.GetAddressBytes() : null)
             .Where(b => b != null)
             .ToList()!;
+
+    private async Task OnAssetFileUpload(InputFileChangeEventArgs e, string fieldName)
+    {
+        var file = e.File;
+        if (file is null) return;
+
+        using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+        using var reader = new StreamReader(stream);
+        var content = await reader.ReadToEndAsync();
+        var count = ParseStringList(content).Count;
+
+        switch (fieldName)
+        {
+            case nameof(_fileFqdns): _fileFqdns = content; _fileFqdnsName = file.Name; _fileFqdnsCount = count; _assetFqdns = string.Empty; break;
+            case nameof(_fileIpAddresses): _fileIpAddresses = content; _fileIpAddressesName = file.Name; _fileIpAddressesCount = count; _assetIpAddresses = string.Empty; break;
+            case nameof(_fileAsns): _fileAsns = content; _fileAsnsName = file.Name; _fileAsnsCount = count; _assetAsns = string.Empty; break;
+            case nameof(_fileNetblocks): _fileNetblocks = content; _fileNetblocksName = file.Name; _fileNetblocksCount = count; _assetNetblocks = string.Empty; break;
+            case nameof(_fileOrganizations): _fileOrganizations = content; _fileOrganizationsName = file.Name; _fileOrganizationsCount = count; _assetOrganizations = string.Empty; break;
+            case nameof(_fileLocations): _fileLocations = content; _fileLocationsName = file.Name; _fileLocationsCount = count; _assetLocations = string.Empty; break;
+        }
+        StateHasChanged();
+    }
+
+    private void ClearAssetFile(string fieldName)
+    {
+        switch (fieldName)
+        {
+            case nameof(_fileFqdns): _fileFqdns = string.Empty; _fileFqdnsName = null; _fileFqdnsCount = 0; break;
+            case nameof(_fileIpAddresses): _fileIpAddresses = string.Empty; _fileIpAddressesName = null; _fileIpAddressesCount = 0; break;
+            case nameof(_fileAsns): _fileAsns = string.Empty; _fileAsnsName = null; _fileAsnsCount = 0; break;
+            case nameof(_fileNetblocks): _fileNetblocks = string.Empty; _fileNetblocksName = null; _fileNetblocksCount = 0; break;
+            case nameof(_fileOrganizations): _fileOrganizations = string.Empty; _fileOrganizationsName = null; _fileOrganizationsCount = 0; break;
+            case nameof(_fileLocations): _fileLocations = string.Empty; _fileLocationsName = null; _fileLocationsCount = 0; break;
+        }
+    }
+
+    private const int LargeListThreshold = 100;
+
+    private static void LoadAssetList(List<string> items, Action<string> setTextarea, Action<string> setFile, Action<string?> setFileName, Action<int> setFileCount)
+    {
+        if (items.Count == 0) return;
+
+        if (items.Count <= LargeListThreshold)
+        {
+            setTextarea(string.Join("\n", items));
+        }
+        else
+        {
+            setFile(string.Join("\n", items));
+            setFileName($"{items.Count:N0} items from saved session");
+            setFileCount(items.Count);
+        }
+    }
+
+    private static string MergeText(string textarea, string fileContent)
+    {
+        if (string.IsNullOrWhiteSpace(fileContent))
+            return textarea;
+        if (string.IsNullOrWhiteSpace(textarea))
+            return fileContent;
+        return textarea.TrimEnd() + "\n" + fileContent;
+    }
 
     private static string FormatCidr(IpNet net)
     {

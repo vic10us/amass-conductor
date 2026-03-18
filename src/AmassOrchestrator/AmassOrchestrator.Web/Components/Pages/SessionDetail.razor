@@ -358,10 +358,8 @@ else
 
         if (result is CreateSessionDialogResult dialogResult)
         {
-            var newConfig = dialogResult.Config;
-            var enumResult = dialogResult.UseSameEngine && !string.IsNullOrEmpty(dialogResult.TargetEnginePodName)
-                ? await EnumerationService.StartEnumerationOnEngineAsync(dialogResult.TargetEnginePodName, newConfig, dialogResult.Assets, dialogResult.SubmitDomainsAsFqdnAssets)
-                : await EnumerationService.StartEnumerationAsync(newConfig, dialogResult.Assets, dialogResult.SubmitDomainsAsFqdnAssets);
+            var enumResult = await RunWithProgressDialog(dialogResult);
+            if (enumResult is null) return;
 
             if (enumResult.Success)
             {
@@ -377,11 +375,11 @@ else
                 NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", errorMessage);
                 var persistedData = new PersistedSessionData
                 {
-                    Config = newConfig,
+                    Config = dialogResult.Config,
                     Assets = dialogResult.Assets,
                     SubmitDomainsAsFqdns = dialogResult.SubmitDomainsAsFqdnAssets
                 };
-                await SessionRepository.CreateFailedAsync(newConfig.Scope?.Domains ?? [], persistedData.Serialize(), errorMessage);
+                await SessionRepository.CreateFailedAsync(dialogResult.Config.Scope?.Domains ?? [], persistedData.Serialize(), errorMessage);
             }
         }
     }
@@ -396,6 +394,24 @@ else
         await SessionRepository.DeleteLogsAsync(SessionToken);
         NotificationService.Notify(NotificationSeverity.Success, "Session deleted");
         Navigation.NavigateTo("sessions");
+    }
+
+    private async Task<EnumerationResult?> RunWithProgressDialog(CreateSessionDialogResult dialogResult)
+    {
+        var parameters = new Dictionary<string, object?>
+        {
+            { nameof(SessionProgressDialog.Config), dialogResult.Config },
+            { nameof(SessionProgressDialog.SeedAssets), dialogResult.Assets },
+            { nameof(SessionProgressDialog.SubmitDomainsAsFqdns), dialogResult.SubmitDomainsAsFqdnAssets },
+            { nameof(SessionProgressDialog.TargetEnginePodName),
+                dialogResult.UseSameEngine ? dialogResult.TargetEnginePodName : null },
+        };
+
+        var result = await DialogService.OpenAsync<SessionProgressDialog>("Creating Session",
+            parameters,
+            new DialogOptions { ShowClose = false, CloseDialogOnEsc = false, Width = "500px" });
+
+        return result as EnumerationResult;
     }
 
     private bool _disposed;

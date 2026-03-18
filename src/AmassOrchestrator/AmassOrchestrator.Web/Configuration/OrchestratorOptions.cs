@@ -22,4 +22,5 @@ public class OrchestratorOptions
     public bool AutoDeleteCompletedSessions { get; set; } = true;
     public string InstanceId { get; set; } = Environment.MachineName;
     public string? AmassDbConnectionString { get; set; }
+    public int BulkAssetBatchSize { get; set; } = 1000;
 }
