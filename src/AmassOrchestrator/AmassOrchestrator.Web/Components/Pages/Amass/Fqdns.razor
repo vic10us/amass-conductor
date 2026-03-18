@@ -1,0 +1,123 @@
+@page "/assets/fqdns"
+@inject IServiceProvider ServiceProvider
+
+<PageTitle>FQDNs - Amass Conductor</PageTitle>
+
+<RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" class="rz-mb-4">
+    <RadzenText TextStyle="TextStyle.H4" class="rz-m-0">FQDNs</RadzenText>
+    <RadzenTextBox @bind-Value="_search" Placeholder="Search FQDNs..." Change="@(_ => LoadPageAsync(0))" Style="width: 300px;" />
+</RadzenStack>
+
+@if (_error != null)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" Variant="Variant.Flat">@_error</RadzenAlert>
+}
+
+@if (_initialLoading)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+}
+else
+{
+    <RadzenDataGrid Data="@_items" TItem="FqdnAsset"
+                    AllowPaging="true" PageSize="@PageSize" Count="@_count"
+                    IsLoading="@_loading" Density="Density.Compact" Style="width: 100%;"
+                    LoadData="@OnLoadData"
+                    RowExpand="@OnRowExpand" ExpandMode="DataGridExpandMode.Single">
+        <Template Context="fqdn">
+            @if (_relatedIps.TryGetValue(fqdn.Id, out var ips) && ips.Any())
+            {
+                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-2">Related IP Addresses</RadzenText>
+                <RadzenDataGrid Data="@ips" TItem="RelatedIpAddress" Density="Density.Compact" Style="width: 100%;">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="RelatedIpAddress" Title="IP Address" Width="200px">
+                            <Template Context="ip">
+                                <RadzenLink Text="@ip.IpAddress" Path="assets/ips" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="RelatedIpAddress" Property="EdgeLabel" Title="Relation" Width="180px" />
+                        <RadzenDataGridColumn TItem="RelatedIpAddress" Property="CreatedAt" Title="Created" Width="180px">
+                            <Template Context="ip">@ip.CreatedAt.ToString("yyyy-MM-dd HH:mm")</Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+            }
+            else if (_loadingRelated)
+            {
+                <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Small" />
+            }
+            else
+            {
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">No related IP addresses found.</RadzenText>
+            }
+        </Template>
+        <Columns>
+            <RadzenDataGridColumn TItem="FqdnAsset" Property="Fqdn" Title="FQDN" />
+            <RadzenDataGridColumn TItem="FqdnAsset" Property="CreatedAt" Title="Created" Width="180px">
+                <Template Context="fqdn">@fqdn.CreatedAt.ToString("yyyy-MM-dd HH:mm")</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="FqdnAsset" Property="UpdatedAt" Title="Updated" Width="180px">
+                <Template Context="fqdn">@fqdn.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+}
+
+@code {
+    private const int PageSize = 50;
+    private IAmassDataService? _service;
+    private List<FqdnAsset> _items = [];
+    private int _count;
+    private bool _initialLoading = true;
+    private bool _loading;
+    private bool _loadingRelated;
+    private string? _search;
+    private string? _error;
+    private Dictionary<long, List<RelatedIpAddress>> _relatedIps = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _service = ServiceProvider.GetService<IAmassDataService>();
+        await LoadPageAsync(0);
+        _initialLoading = false;
+    }
+
+    private async Task LoadPageAsync(int skip)
+    {
+        if (_service == null) return;
+        _loading = true;
+        _error = null;
+        try
+        {
+            var (items, count) = await _service.GetFqdnsAsync(skip, PageSize, _search);
+            _items = items;
+            _count = count;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        _loading = false;
+    }
+
+    private async Task OnLoadData(LoadDataArgs args)
+    {
+        await LoadPageAsync(args.Skip ?? 0);
+    }
+
+    private async void OnRowExpand(FqdnAsset fqdn)
+    {
+        if (_service == null || _relatedIps.ContainsKey(fqdn.Id)) return;
+        _loadingRelated = true;
+        try
+        {
+            _relatedIps[fqdn.Id] = await _service.GetRelatedIpsForFqdnAsync(fqdn.Id);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        _loadingRelated = false;
+        await InvokeAsync(StateHasChanged);
+    }
+}

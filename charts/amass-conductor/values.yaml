@@ -68,6 +68,13 @@ orchestrator:
   databasePath: /app/data/orchestrator.db
   maxActiveSessionsPerEngine: 1
   autoDeleteCompletedSessions: true
+  # PostgreSQL connection string for the Amass asset database (optional)
+  # If set, enables the Assets browser in the dashboard
+  # Example: "Host=amass-db;Port=5432;Database=amass;Username=amass;Password=secret"
+  amassDbConnectionString: ""
+  # Use an existing secret for the connection string instead of values
+  amassDbExistingSecret: ""
+  amassDbExistingSecretKey: "connection-string"
 
 # ASP.NET Core settings
 aspnetcore:

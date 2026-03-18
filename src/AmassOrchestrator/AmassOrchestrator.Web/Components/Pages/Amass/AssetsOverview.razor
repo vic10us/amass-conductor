@@ -1,0 +1,85 @@
+@page "/assets"
+@inject IServiceProvider ServiceProvider
+
+<PageTitle>Assets Overview - Amass Conductor</PageTitle>
+
+<RadzenText TextStyle="TextStyle.H4" class="rz-mb-4">Assets Overview</RadzenText>
+
+@if (_amassService == null)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true" Variant="Variant.Flat">
+        Amass database is not configured. Set <code>AmassDbConnectionString</code> in the Orchestrator configuration to enable asset browsing.
+    </RadzenAlert>
+}
+else if (_loading)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+}
+else if (_error != null)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" Variant="Variant.Flat">
+        Failed to connect to Amass database: @_error
+    </RadzenAlert>
+}
+else
+{
+    <RadzenRow Gap="1rem">
+        @foreach (var asset in _assetCounts)
+        {
+            <RadzenColumn Size="12" SizeMD="6" SizeLG="3">
+                <RadzenCard Variant="Variant.Outlined" class="rz-p-4">
+                    <RadzenStack Orientation="Orientation.Vertical" Gap="0.5rem">
+                        <RadzenLink Path="@GetPath(asset.Key)" Style="text-decoration: none;">
+                            <RadzenText TextStyle="TextStyle.Subtitle1" class="rz-color-secondary">@asset.Key</RadzenText>
+                        </RadzenLink>
+                        <RadzenText TextStyle="TextStyle.H3" class="rz-m-0">@asset.Value.ToString("N0")</RadzenText>
+                    </RadzenStack>
+                </RadzenCard>
+            </RadzenColumn>
+        }
+    </RadzenRow>
+}
+
+@code {
+    private IAmassDataService? _amassService;
+    private Dictionary<string, long> _assetCounts = new();
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _amassService = ServiceProvider.GetService<IAmassDataService>();
+        if (_amassService == null) return;
+
+        try
+        {
+            if (!await _amassService.IsAvailableAsync())
+            {
+                _error = "Database is unreachable.";
+                return;
+            }
+            _assetCounts = await _amassService.GetAssetCountsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string GetPath(string assetType) => assetType switch
+    {
+        "FQDNs" => "assets/fqdns",
+        "IP Addresses" => "assets/ips",
+        "Netblocks" => "assets/netblocks",
+        "ASNs" => "assets/asns",
+        "Autnum Records" => "assets/asns",
+        "Domains" => "assets/domains",
+        "Certificates" => "assets/certificates",
+        "Services" => "assets/services",
+        _ => "assets"
+    };
+}

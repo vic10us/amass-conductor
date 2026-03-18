@@ -1,0 +1,125 @@
+@page "/assets/asns"
+@inject IServiceProvider ServiceProvider
+
+<PageTitle>Autonomous Systems - Amass Conductor</PageTitle>
+
+<RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" class="rz-mb-4">
+    <RadzenText TextStyle="TextStyle.H4" class="rz-m-0">Autonomous Systems</RadzenText>
+    <RadzenTextBox @bind-Value="_search" Placeholder="Search ASN..." Change="@(_ => LoadPageAsync(0))" Style="width: 300px;" />
+</RadzenStack>
+
+@if (_error != null)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" Variant="Variant.Flat">@_error</RadzenAlert>
+}
+
+@if (_initialLoading)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+}
+else
+{
+    <RadzenDataGrid Data="@_items" TItem="AutonomousSystemAsset"
+                    AllowPaging="true" PageSize="@PageSize" Count="@_count"
+                    IsLoading="@_loading" Density="Density.Compact" Style="width: 100%;"
+                    LoadData="@OnLoadData"
+                    RowExpand="@OnRowExpand" ExpandMode="DataGridExpandMode.Single">
+        <Template Context="asn">
+            @if (_relatedNetblocks.TryGetValue(asn.Id, out var nbs) && nbs.Any())
+            {
+                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-2">Related Netblocks</RadzenText>
+                <RadzenDataGrid Data="@nbs" TItem="RelatedNetblock" Density="Density.Compact" Style="width: 100%;">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="RelatedNetblock" Title="CIDR" Width="200px">
+                            <Template Context="nb">
+                                <RadzenLink Text="@nb.Cidr" Path="assets/netblocks" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="RelatedNetblock" Property="EdgeLabel" Title="Relation" Width="180px" />
+                        <RadzenDataGridColumn TItem="RelatedNetblock" Property="CreatedAt" Title="Created" Width="180px">
+                            <Template Context="nb">@nb.CreatedAt.ToString("yyyy-MM-dd HH:mm")</Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+            }
+            else if (_loadingRelated)
+            {
+                <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Small" />
+            }
+            else
+            {
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">No related netblocks found.</RadzenText>
+            }
+        </Template>
+        <Columns>
+            <RadzenDataGridColumn TItem="AutonomousSystemAsset" Property="Asn" Title="ASN" Width="150px">
+                <Template Context="asn">AS@(asn.Asn)</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="AutonomousSystemAsset" Property="CreatedAt" Title="Created" Width="180px">
+                <Template Context="asn">@asn.CreatedAt.ToString("yyyy-MM-dd HH:mm")</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="AutonomousSystemAsset" Property="UpdatedAt" Title="Updated" Width="180px">
+                <Template Context="asn">@asn.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+}
+
+@code {
+    private const int PageSize = 50;
+    private IAmassDataService? _service;
+    private List<AutonomousSystemAsset> _items = [];
+    private int _count;
+    private bool _initialLoading = true;
+    private bool _loading;
+    private bool _loadingRelated;
+    private string? _search;
+    private string? _error;
+    private Dictionary<long, List<RelatedNetblock>> _relatedNetblocks = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _service = ServiceProvider.GetService<IAmassDataService>();
+        await LoadPageAsync(0);
+        _initialLoading = false;
+    }
+
+    private async Task LoadPageAsync(int skip)
+    {
+        if (_service == null) return;
+        _loading = true;
+        _error = null;
+        try
+        {
+            var (items, count) = await _service.GetAutonomousSystemsAsync(skip, PageSize, _search);
+            _items = items;
+            _count = count;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        _loading = false;
+    }
+
+    private async Task OnLoadData(LoadDataArgs args)
+    {
+        await LoadPageAsync(args.Skip ?? 0);
+    }
+
+    private async void OnRowExpand(AutonomousSystemAsset asn)
+    {
+        if (_service == null || _relatedNetblocks.ContainsKey(asn.Id)) return;
+        _loadingRelated = true;
+        try
+        {
+            _relatedNetblocks[asn.Id] = await _service.GetRelatedNetblocksForAsnAsync(asn.Id);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        _loadingRelated = false;
+        await InvokeAsync(StateHasChanged);
+    }
+}
