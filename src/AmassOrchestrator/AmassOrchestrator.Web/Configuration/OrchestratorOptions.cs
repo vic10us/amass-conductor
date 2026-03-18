@@ -20,5 +20,6 @@ public class OrchestratorOptions
     public string DatabasePath { get; set; } = "App_Data/orchestrator.db";
     public int MaxActiveSessionsPerEngine { get; set; } = 1;
     public bool AutoDeleteCompletedSessions { get; set; } = true;
+    public string InstanceId { get; set; } = Environment.MachineName;
     public string? AmassDbConnectionString { get; set; }
 }

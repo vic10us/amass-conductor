@@ -5,6 +5,7 @@ public class SessionRecord
     public int Id { get; set; }
     public string Token { get; set; } = string.Empty;
     public string EnginePodName { get; set; } = string.Empty;
+    public string InstanceId { get; set; } = string.Empty;
     public int WorkItemsCompleted { get; set; }
     public int WorkItemsTotal { get; set; }
     public bool IsCompleted { get; set; }
