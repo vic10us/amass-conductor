@@ -14,7 +14,12 @@ public class PersistedSessionData
     [JsonPropertyName("submit_domains_as_fqdns")]
     public bool SubmitDomainsAsFqdns { get; set; } = true;
 
-    public string Serialize() => JsonSerializer.Serialize(this);
+    private static readonly JsonSerializerOptions SerializeOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    public string Serialize() => JsonSerializer.Serialize(this, SerializeOptions);
 
     /// <summary>
     /// Deserializes config JSON, handling both the new wrapper format and

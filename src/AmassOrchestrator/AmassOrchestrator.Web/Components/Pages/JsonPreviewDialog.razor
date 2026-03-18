@@ -1,0 +1,18 @@
+@inject IJSRuntime JS
+@inject DialogService DialogService
+
+<pre style="background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 4px; max-height: 500px; overflow: auto; font-size: 13px; white-space: pre-wrap; word-break: break-word;">@Json</pre>
+
+<RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem" class="rz-mt-3">
+    <RadzenButton Text="Copy" ButtonStyle="ButtonStyle.Secondary" Icon="content_copy" Click="@OnCopy" />
+    <RadzenButton Text="Close" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close())" />
+</RadzenStack>
+
+@code {
+    [Parameter] public string Json { get; set; } = string.Empty;
+
+    private async Task OnCopy()
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", Json);
+    }
+}
