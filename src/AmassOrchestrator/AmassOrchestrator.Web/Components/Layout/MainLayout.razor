@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
 @inject AmassOrchestrator.Web.Services.ThemeService ThemeService
+@inject IServiceProvider ServiceProvider
 
 <RadzenLayout>
     <RadzenHeader>
@@ -20,6 +21,19 @@
             <RadzenPanelMenuItem Text="Sessions" Icon="list" Path="sessions" />
             <RadzenPanelMenuItem Text="Logs" Icon="terminal" Path="logs" />
             <RadzenPanelMenuItem Text="Statistics" Icon="bar_chart" Path="statistics" />
+            @if (ServiceProvider.GetService<IAmassDataService>() is not null)
+            {
+                <RadzenPanelMenuItem Text="Assets" Icon="storage">
+                    <RadzenPanelMenuItem Text="Overview" Icon="dashboard" Path="assets" />
+                    <RadzenPanelMenuItem Text="FQDNs" Icon="dns" Path="assets/fqdns" />
+                    <RadzenPanelMenuItem Text="IP Addresses" Icon="lan" Path="assets/ips" />
+                    <RadzenPanelMenuItem Text="Netblocks" Icon="hub" Path="assets/netblocks" />
+                    <RadzenPanelMenuItem Text="ASNs" Icon="account_tree" Path="assets/asns" />
+                    <RadzenPanelMenuItem Text="Certificates" Icon="verified_user" Path="assets/certificates" />
+                    <RadzenPanelMenuItem Text="Domains" Icon="public" Path="assets/domains" />
+                    <RadzenPanelMenuItem Text="Services" Icon="miscellaneous_services" Path="assets/services" />
+                </RadzenPanelMenuItem>
+            }
             <RadzenPanelMenuItem Text="Settings" Icon="settings" Path="settings" />
         </RadzenPanelMenu>
     </RadzenSidebar>

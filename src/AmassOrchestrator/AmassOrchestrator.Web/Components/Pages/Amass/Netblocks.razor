@@ -1,0 +1,79 @@
+@page "/assets/netblocks"
+@inject IServiceProvider ServiceProvider
+
+<PageTitle>Netblocks - Amass Conductor</PageTitle>
+
+<RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" class="rz-mb-4">
+    <RadzenText TextStyle="TextStyle.H4" class="rz-m-0">Netblocks</RadzenText>
+    <RadzenTextBox @bind-Value="_search" Placeholder="Search CIDR..." Change="@(_ => LoadPageAsync(0))" Style="width: 300px;" />
+</RadzenStack>
+
+@if (_error != null)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" Variant="Variant.Flat">@_error</RadzenAlert>
+}
+
+@if (_initialLoading)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+}
+else
+{
+    <RadzenDataGrid Data="@_items" TItem="NetblockAsset"
+                    AllowPaging="true" PageSize="@PageSize" Count="@_count"
+                    IsLoading="@_loading" Density="Density.Compact" Style="width: 100%;"
+                    LoadData="@OnLoadData">
+        <Columns>
+            <RadzenDataGridColumn TItem="NetblockAsset" Title="CIDR">
+                <Template Context="nb">@nb.NetblockCidr</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="NetblockAsset" Property="CreatedAt" Title="Created" Width="180px">
+                <Template Context="nb">@nb.CreatedAt.ToString("yyyy-MM-dd HH:mm")</Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="NetblockAsset" Property="UpdatedAt" Title="Updated" Width="180px">
+                <Template Context="nb">@nb.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+}
+
+@code {
+    private const int PageSize = 50;
+    private IAmassDataService? _service;
+    private List<NetblockAsset> _items = [];
+    private int _count;
+    private bool _initialLoading = true;
+    private bool _loading;
+    private string? _search;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _service = ServiceProvider.GetService<IAmassDataService>();
+        await LoadPageAsync(0);
+        _initialLoading = false;
+    }
+
+    private async Task LoadPageAsync(int skip)
+    {
+        if (_service == null) return;
+        _loading = true;
+        _error = null;
+        try
+        {
+            var (items, count) = await _service.GetNetblocksAsync(skip, PageSize, _search);
+            _items = items;
+            _count = count;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        _loading = false;
+    }
+
+    private async Task OnLoadData(LoadDataArgs args)
+    {
+        await LoadPageAsync(args.Skip ?? 0);
+    }
+}

@@ -58,6 +58,33 @@ builder.Services.AddDbContextFactory<OrchestratorDbContext>(options =>
     options.UseSqlite($"Data Source={dbPath}"));
 builder.Services.AddSingleton<ISessionRepository, SessionRepository>();
 
+// Amass PostgreSQL database (optional, read-only)
+var amassConnStr = orchestratorConfig.AmassDbConnectionString;
+if (!string.IsNullOrEmpty(amassConnStr))
+{
+    // Convert URI format (postgres://user:pass@host:port/db) to key-value format
+    if (amassConnStr.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+        amassConnStr.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+    {
+        var uri = new Uri(amassConnStr);
+        var userInfo = uri.UserInfo.Split(':');
+        var csb = new Npgsql.NpgsqlConnectionStringBuilder
+        {
+            Host = uri.Host,
+            Port = uri.Port > 0 ? uri.Port : 5432,
+            Database = uri.AbsolutePath.TrimStart('/'),
+            Username = Uri.UnescapeDataString(userInfo[0]),
+            Password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : null
+        };
+        amassConnStr = csb.ConnectionString;
+    }
+
+    builder.Services.AddDbContextFactory<AmassDbContext>(options =>
+        options.UseNpgsql(amassConnStr)
+               .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
+    builder.Services.AddSingleton<IAmassDataService, AmassDataService>();
+}
+
 builder.Services.AddSingleton<DefaultsLoaderService>();
 
 builder.Services.AddHttpClient(AmassEngineClient.HttpClientName)

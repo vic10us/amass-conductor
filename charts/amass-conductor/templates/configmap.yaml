@@ -17,3 +17,6 @@ data:
   Orchestrator__DatabasePath: {{ .Values.orchestrator.databasePath | quote }}
   Orchestrator__MaxActiveSessionsPerEngine: {{ .Values.orchestrator.maxActiveSessionsPerEngine | quote }}
   Orchestrator__AutoDeleteCompletedSessions: {{ .Values.orchestrator.autoDeleteCompletedSessions | quote }}
+  {{- if and .Values.orchestrator.amassDbConnectionString (not .Values.orchestrator.amassDbExistingSecret) }}
+  Orchestrator__AmassDbConnectionString: {{ .Values.orchestrator.amassDbConnectionString | quote }}
+  {{- end }}

@@ -1,0 +1,121 @@
+@page "/assets/certificates"
+@inject IServiceProvider ServiceProvider
+
+<PageTitle>TLS Certificates - Amass Conductor</PageTitle>
+
+<RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" class="rz-mb-4">
+    <RadzenText TextStyle="TextStyle.H4" class="rz-m-0">TLS Certificates</RadzenText>
+    <RadzenTextBox @bind-Value="_search" Placeholder="Search certificates..." Change="@(_ => LoadPageAsync(0))" Style="width: 300px;" />
+</RadzenStack>
+
+@if (_error != null)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" Variant="Variant.Flat">@_error</RadzenAlert>
+}
+
+@if (_initialLoading)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+}
+else
+{
+    <RadzenDataGrid Data="@_items" TItem="TlsCertificateAsset"
+                    AllowPaging="true" PageSize="@PageSize" Count="@_count"
+                    IsLoading="@_loading" Density="Density.Compact" Style="width: 100%;"
+                    LoadData="@OnLoadData"
+                    RowExpand="@OnRowExpand" ExpandMode="DataGridExpandMode.Single">
+        <Template Context="cert">
+            @if (_relatedFqdns.TryGetValue(cert.Id, out var fqdns) && fqdns.Any())
+            {
+                <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-2">Related FQDNs (SANs)</RadzenText>
+                <RadzenDataGrid Data="@fqdns" TItem="RelatedFqdn" Density="Density.Compact" Style="width: 100%;">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="RelatedFqdn" Title="FQDN" Width="300px">
+                            <Template Context="f">
+                                <RadzenLink Text="@f.Fqdn" Path="assets/fqdns" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="RelatedFqdn" Property="EdgeLabel" Title="Relation" Width="180px" />
+                        <RadzenDataGridColumn TItem="RelatedFqdn" Property="CreatedAt" Title="Created" Width="180px">
+                            <Template Context="f">@f.CreatedAt.ToString("yyyy-MM-dd HH:mm")</Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+            }
+            else if (_loadingRelated)
+            {
+                <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Small" />
+            }
+            else
+            {
+                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">No related FQDNs found.</RadzenText>
+            }
+        </Template>
+        <Columns>
+            <RadzenDataGridColumn TItem="TlsCertificateAsset" Property="SerialNumber" Title="Serial Number" Width="300px" />
+            <RadzenDataGridColumn TItem="TlsCertificateAsset" Property="SubjectCommonName" Title="Subject CN" />
+            <RadzenDataGridColumn TItem="TlsCertificateAsset" Property="CreatedAt" Title="Created" Width="180px">
+                <Template Context="cert">@cert.CreatedAt.ToString("yyyy-MM-dd HH:mm")</Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+}
+
+@code {
+    private const int PageSize = 50;
+    private IAmassDataService? _service;
+    private List<TlsCertificateAsset> _items = [];
+    private int _count;
+    private bool _initialLoading = true;
+    private bool _loading;
+    private bool _loadingRelated;
+    private string? _search;
+    private string? _error;
+    private Dictionary<long, List<RelatedFqdn>> _relatedFqdns = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _service = ServiceProvider.GetService<IAmassDataService>();
+        await LoadPageAsync(0);
+        _initialLoading = false;
+    }
+
+    private async Task LoadPageAsync(int skip)
+    {
+        if (_service == null) return;
+        _loading = true;
+        _error = null;
+        try
+        {
+            var (items, count) = await _service.GetTlsCertificatesAsync(skip, PageSize, _search);
+            _items = items;
+            _count = count;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        _loading = false;
+    }
+
+    private async Task OnLoadData(LoadDataArgs args)
+    {
+        await LoadPageAsync(args.Skip ?? 0);
+    }
+
+    private async void OnRowExpand(TlsCertificateAsset cert)
+    {
+        if (_service == null || _relatedFqdns.ContainsKey(cert.Id)) return;
+        _loadingRelated = true;
+        try
+        {
+            _relatedFqdns[cert.Id] = await _service.GetRelatedFqdnsForCertAsync(cert.Id);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        _loadingRelated = false;
+        await InvokeAsync(StateHasChanged);
+    }
+}
