@@ -1,3 +1,5 @@
+@using System.Text.Json
+@using System.Text.Json.Serialization
 @using AmassOrchestrator.Web.Configuration
 @using AmassOrchestrator.Web.Models
 @using AmassOrchestrator.Web.Services
@@ -228,6 +230,7 @@
 
 <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem" class="rz-mt-4">
     <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(null))" />
+    <RadzenButton Text="Preview JSON" ButtonStyle="ButtonStyle.Info" Icon="preview" Click="@OnPreview" />
     <RadzenButton Text="@(InitialConfig != null ? "Restart" : "Create")" ButtonStyle="ButtonStyle.Primary" Click="@OnCreate" />
 </RadzenStack>
 
@@ -381,7 +384,7 @@
         _customTransformationKey = string.Empty;
     }
 
-    private void OnCreate()
+    private (AmassConfig Config, SeedAssets Assets)? BuildConfig()
     {
         _validationError = null;
         _datasourceError = null;
@@ -400,7 +403,7 @@
         if (domains.Count == 0 && !assetObj.HasAny())
         {
             _validationError = "At least one domain or seed asset is required.";
-            return;
+            return null;
         }
 
         DataSourceConfig? datasourceConfig = null;
@@ -413,7 +416,7 @@
             catch (Exception ex)
             {
                 _datasourceError = $"Invalid YAML: {ex.Message}";
-                return;
+                return null;
             }
         }
 
@@ -464,15 +467,43 @@
                 : null
         };
 
+        return (config, assetObj);
+    }
+
+    private void OnCreate()
+    {
+        var result = BuildConfig();
+        if (result is null)
+            return;
+
         var dialogResult = new CreateSessionDialogResult
         {
-            Config = config,
-            Assets = assetObj,
+            Config = result.Value.Config,
+            Assets = result.Value.Assets,
             SubmitDomainsAsFqdnAssets = _submitDomainsAsFqdnAssets,
             UseSameEngine = _useSameEngine && !string.IsNullOrEmpty(OriginalEnginePodName),
             TargetEnginePodName = _useSameEngine ? OriginalEnginePodName : null
         };
         DialogService.Close(dialogResult);
+    }
+
+    private static readonly JsonSerializerOptions PreviewJsonOptions = new()
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    private async Task OnPreview()
+    {
+        var result = BuildConfig();
+        if (result is null)
+            return;
+
+        var json = JsonSerializer.Serialize(result.Value.Config, PreviewJsonOptions);
+
+        await DialogService.OpenAsync<JsonPreviewDialog>("JSON Preview",
+            new Dictionary<string, object?> { { "Json", json } },
+            new DialogOptions { Width = "700px", Height = "600px", Resizable = true, Draggable = true });
     }
 
     private void OnDatabaseUrlChanged(string value)

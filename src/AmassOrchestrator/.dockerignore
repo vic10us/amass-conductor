@@ -1,0 +1,41 @@
+# Build outputs
+**/bin/
+**/obj/
+**/out/
+
+# Runtime data
+**/logs/
+**/App_Data/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+
+# Test projects
+AmassOrchestrator.Tests/
+
+# IDE / editor
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.swp
+*.swo
+*~
+
+# Environment / secrets
+.env
+.env.*
+appsettings.local.json
+appsettings.*.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.md
+*.nupkg
+*.snupkg
+TestResults/
+coverage/

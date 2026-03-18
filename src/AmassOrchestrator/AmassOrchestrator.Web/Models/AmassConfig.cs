@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using YamlDotNet.Serialization;
 
 namespace AmassOrchestrator.Web.Models;
 
@@ -134,6 +135,7 @@ public class DataSourceCredentials
     public string? Password { get; set; }
 
     [JsonPropertyName("apikey")]
+    [YamlMember(Alias = "apikey")]
     public string? ApiKey { get; set; }
 
     [JsonPropertyName("secret")]
