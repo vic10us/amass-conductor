@@ -85,15 +85,15 @@ else
         <RadzenButton Text="New Enumeration (Auto)" Icon="play_arrow" ButtonStyle="ButtonStyle.Success" Click="@StartAutoEnumeration" />
     </RadzenStack>
 
-    <RadzenText TextStyle="TextStyle.H5" class="rz-mb-2">Sessions (@_state.Sessions.Count)</RadzenText>
+    <RadzenText TextStyle="TextStyle.H5" class="rz-mb-2">Sessions (@_sessions.Count)</RadzenText>
 
-    @if (_state.Sessions.Count == 0)
+    @if (_sessions.Count == 0)
     {
         <RadzenText>No active sessions.</RadzenText>
     }
     else
     {
-        <RadzenDataGrid TItem="SessionInfo" Data="@_state.Sessions" AllowPaging="true" PageSize="10">
+        <RadzenDataGrid TItem="SessionInfo" Data="@_sessions" AllowPaging="true" PageSize="10">
             <Columns>
                 <RadzenDataGridColumn TItem="SessionInfo" Title="Token" Width="320px">
                     <Template Context="session">
@@ -119,11 +119,22 @@ else
     [Parameter] public string PodName { get; set; } = string.Empty;
 
     private EngineInstanceState? _state;
+    private readonly List<SessionInfo> _sessions = [];
 
     protected override void OnInitialized()
     {
         _state = StateStore.GetState(Uri.UnescapeDataString(PodName));
+        SyncSessions();
         StateStore.OnStateChanged += HandleStateChanged;
+    }
+
+    private void SyncSessions()
+    {
+        _sessions.Clear();
+        if (_state?.Sessions is { } sessions)
+        {
+            _sessions.AddRange(sessions);
+        }
     }
 
     private async void HandleStateChanged()
@@ -131,8 +142,12 @@ else
         if (_disposed) return;
         try
         {
-            _state = StateStore.GetState(Uri.UnescapeDataString(PodName));
-            await InvokeAsync(StateHasChanged);
+            await InvokeAsync(() =>
+            {
+                _state = StateStore.GetState(Uri.UnescapeDataString(PodName));
+                SyncSessions();
+                StateHasChanged();
+            });
         }
         catch (ObjectDisposedException) { }
     }

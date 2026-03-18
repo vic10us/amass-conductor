@@ -20,4 +20,5 @@ public interface ISessionRepository
     Task CreateFailedAsync(IEnumerable<string> domains, string configJson, string errorMessage);
     Task MarkCancelledAsync(string token);
     Task MarkFailedAsync(string token, string errorMessage);
+    Task<HashSet<string>> GetOwnedActiveTokensAsync();
 }

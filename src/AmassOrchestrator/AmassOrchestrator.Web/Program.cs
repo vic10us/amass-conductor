@@ -113,6 +113,12 @@ using (var scope = app.Services.CreateScope())
     try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Sessions ADD COLUMN IsFailed INTEGER NOT NULL DEFAULT 0"); } catch { /* column already exists */ }
     try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Sessions ADD COLUMN ErrorMessage TEXT"); } catch { /* column already exists */ }
     try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Sessions ADD COLUMN IsCancelled INTEGER NOT NULL DEFAULT 0"); } catch { /* column already exists */ }
+    try { await db.Database.ExecuteSqlRawAsync("ALTER TABLE Sessions ADD COLUMN InstanceId TEXT NOT NULL DEFAULT ''"); } catch { /* column already exists */ }
+
+    // Backfill existing sessions to claim them for this instance
+    var instanceId = orchestratorConfig.InstanceId;
+    await db.Database.ExecuteSqlRawAsync(
+        "UPDATE Sessions SET InstanceId = {0} WHERE InstanceId = ''", instanceId);
 }
 
 if (!app.Environment.IsDevelopment())

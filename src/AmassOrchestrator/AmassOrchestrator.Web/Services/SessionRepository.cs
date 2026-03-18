@@ -1,7 +1,9 @@
 using System.Text.Json;
+using AmassOrchestrator.Web.Configuration;
 using AmassOrchestrator.Web.Data;
 using AmassOrchestrator.Web.Models.Kubernetes;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AmassOrchestrator.Web.Services;
 
@@ -9,11 +11,16 @@ public class SessionRepository : ISessionRepository
 {
     private readonly IDbContextFactory<OrchestratorDbContext> _contextFactory;
     private readonly ILogger<SessionRepository> _logger;
+    private readonly string _instanceId;
 
-    public SessionRepository(IDbContextFactory<OrchestratorDbContext> contextFactory, ILogger<SessionRepository> logger)
+    public SessionRepository(
+        IDbContextFactory<OrchestratorDbContext> contextFactory,
+        ILogger<SessionRepository> logger,
+        IOptionsMonitor<OrchestratorOptions> options)
     {
         _contextFactory = contextFactory;
         _logger = logger;
+        _instanceId = options.CurrentValue.InstanceId;
     }
 
     public async Task CreateAsync(string enginePodName, string token, IEnumerable<string> domains, string configJson)
@@ -26,6 +33,7 @@ public class SessionRepository : ISessionRepository
         {
             Token = token,
             EnginePodName = enginePodName,
+            InstanceId = _instanceId,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow,
             Domains = JsonSerializer.Serialize(domains),
@@ -43,13 +51,8 @@ public class SessionRepository : ISessionRepository
 
         if (record == null)
         {
-            record = new SessionRecord
-            {
-                Token = session.Token,
-                EnginePodName = enginePodName,
-                CreatedAtUtc = DateTime.UtcNow
-            };
-            db.Sessions.Add(record);
+            // Not our session — skip
+            return;
         }
 
         record.WorkItemsCompleted = session.WorkItemsCompleted;
@@ -69,13 +72,19 @@ public class SessionRepository : ISessionRepository
     public async Task<List<SessionRecord>> GetAllAsync()
     {
         await using var db = await _contextFactory.CreateDbContextAsync();
-        return await db.Sessions.OrderByDescending(s => s.CreatedAtUtc).ToListAsync();
+        return await db.Sessions
+            .Where(s => s.InstanceId == _instanceId)
+            .OrderByDescending(s => s.CreatedAtUtc)
+            .ToListAsync();
     }
 
     public async Task<List<SessionRecord>> GetActiveAsync()
     {
         await using var db = await _contextFactory.CreateDbContextAsync();
-        return await db.Sessions.Where(s => !s.IsCompleted).OrderByDescending(s => s.CreatedAtUtc).ToListAsync();
+        return await db.Sessions
+            .Where(s => s.InstanceId == _instanceId && !s.IsCompleted)
+            .OrderByDescending(s => s.CreatedAtUtc)
+            .ToListAsync();
     }
 
     public async Task<SessionRecord?> GetByTokenAsync(string token)
@@ -161,6 +170,7 @@ public class SessionRepository : ISessionRepository
         {
             Token = token,
             EnginePodName = string.Empty,
+            InstanceId = _instanceId,
             IsFailed = true,
             ErrorMessage = errorMessage,
             CreatedAtUtc = DateTime.UtcNow,
@@ -197,5 +207,15 @@ public class SessionRepository : ISessionRepository
             await db.SaveChangesAsync();
             _logger.LogDebug("Marked session {Token} as failed: {Error}", token, errorMessage);
         }
+    }
+
+    public async Task<HashSet<string>> GetOwnedActiveTokensAsync()
+    {
+        await using var db = await _contextFactory.CreateDbContextAsync();
+        var tokens = await db.Sessions
+            .Where(s => s.InstanceId == _instanceId && !s.IsCompleted && !s.IsFailed && !s.IsCancelled)
+            .Select(s => s.Token)
+            .ToListAsync();
+        return tokens.ToHashSet();
     }
 }

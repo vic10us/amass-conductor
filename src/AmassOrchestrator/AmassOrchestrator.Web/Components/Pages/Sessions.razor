@@ -124,7 +124,7 @@
 @code {
     private RadzenDataGrid<SessionViewModel>? _grid;
     private List<SessionViewModel> _allSessions = [];
-    private List<SessionViewModel> _filteredSessions = [];
+    private readonly List<SessionViewModel> _filteredSessions = [];
     private IList<SessionViewModel> _selectedSessions = new List<SessionViewModel>();
 
     private string _statusFilter = "All";
@@ -175,7 +175,7 @@
             };
         }
 
-        // Overlay live data
+        // Overlay live data for owned sessions only
         foreach (var (token, live) in liveSessionMap)
         {
             if (viewModels.TryGetValue(token, out var vm))
@@ -186,20 +186,8 @@
                 vm.IsLive = true;
                 vm.PodIp = live.PodIp;
             }
-            else
-            {
-                viewModels[token] = new SessionViewModel
-                {
-                    Token = token,
-                    EnginePodName = live.PodName,
-                    WorkItemsCompleted = live.Session.WorkItemsCompleted,
-                    WorkItemsTotal = live.Session.WorkItemsTotal,
-                    IsCompleted = live.Session.IsCompleted,
-                    IsLive = true,
-                    PodIp = live.PodIp,
-                    CreatedAtUtc = DateTime.UtcNow
-                };
-            }
+            // Foreign sessions (not in our DB) are intentionally skipped —
+            // they belong to other orchestrator instances
         }
 
         _allSessions = viewModels.Values.OrderByDescending(s => s.CreatedAtUtc).ToList();
@@ -226,7 +214,8 @@
         if (!string.IsNullOrEmpty(_domainSearch))
             filtered = filtered.Where(s => s.Domains != null && s.Domains.Contains(_domainSearch, StringComparison.OrdinalIgnoreCase));
 
-        _filteredSessions = filtered.ToList();
+        _filteredSessions.Clear();
+        _filteredSessions.AddRange(filtered);
     }
 
     private async void HandleStateChanged()
@@ -234,8 +223,11 @@
         if (_disposed) return;
         try
         {
-            await LoadSessions();
-            await InvokeAsync(StateHasChanged);
+            await InvokeAsync(async () =>
+            {
+                await LoadSessions();
+                StateHasChanged();
+            });
         }
         catch (ObjectDisposedException) { }
     }

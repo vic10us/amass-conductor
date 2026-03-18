@@ -17,6 +17,7 @@ public class OrchestratorDbContext : DbContext
             entity.HasIndex(e => e.IsCompleted);
             entity.HasIndex(e => e.IsFailed);
             entity.HasIndex(e => e.IsCancelled);
+            entity.HasIndex(e => e.InstanceId);
         });
 
         modelBuilder.Entity<LogRecord>(entity =>

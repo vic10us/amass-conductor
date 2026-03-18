@@ -46,7 +46,7 @@ public class LogAggregatorService : BackgroundService
             {
                 try
                 {
-                    SyncStreams();
+                    await SyncStreamsAsync();
                 }
                 catch (Exception ex)
                 {
@@ -87,8 +87,11 @@ public class LogAggregatorService : BackgroundService
         _changeSignal.TrySetResult();
     }
 
-    private void SyncStreams()
+    private async Task SyncStreamsAsync()
     {
+        // Only stream logs for sessions owned by this instance
+        var ownedTokens = await _sessionRepository.GetOwnedActiveTokensAsync();
+
         // Collect all active (non-completed) sessions with their pod info
         var activeSessions = new Dictionary<string, (string PodIp, string PodName)>();
 
@@ -100,7 +103,7 @@ public class LogAggregatorService : BackgroundService
 
             foreach (var session in state.Sessions)
             {
-                if (!session.IsCompleted)
+                if (!session.IsCompleted && ownedTokens.Contains(session.Token))
                 {
                     activeSessions[session.Token] = (state.Pod.PodIP, podName);
                 }
