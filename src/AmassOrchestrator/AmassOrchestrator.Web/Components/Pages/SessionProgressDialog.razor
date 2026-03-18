@@ -1,0 +1,62 @@
+@using AmassOrchestrator.Web.Models
+@using AmassOrchestrator.Web.Services
+@inject IEnumerationService EnumerationService
+@inject DialogService DialogService
+
+<RadzenStack Gap="1rem" Style="min-width: 400px;">
+    @if (_error is not null)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" Shade="Shade.Lighter" AllowClose="false">
+            @_error
+        </RadzenAlert>
+        <RadzenText TextStyle="TextStyle.Caption">
+            The session has been cleaned up from the engine.
+        </RadzenText>
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End">
+            <RadzenButton Text="Close" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(_result))" />
+        </RadzenStack>
+    }
+    else
+    {
+        <RadzenText TextStyle="TextStyle.Body1">@_message</RadzenText>
+        <RadzenProgressBar Value="@_percent" Max="100" ShowValue="false" Mode="@(_percent > 0 ? ProgressBarMode.Determinate : ProgressBarMode.Indeterminate)" Style="height: 8px;" />
+    }
+</RadzenStack>
+
+@code {
+    [Parameter] public AmassConfig Config { get; set; } = new();
+    [Parameter] public SeedAssets? SeedAssets { get; set; }
+    [Parameter] public bool SubmitDomainsAsFqdns { get; set; } = true;
+    [Parameter] public string? TargetEnginePodName { get; set; }
+
+    private string _message = "Starting...";
+    private int _percent;
+    private string? _error;
+    private EnumerationResult? _result;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var progress = new Progress<EnumerationProgress>(p =>
+        {
+            _message = p.Message;
+            _percent = p.PercentComplete ?? 0;
+            InvokeAsync(StateHasChanged);
+        });
+
+        _result = !string.IsNullOrEmpty(TargetEnginePodName)
+            ? await EnumerationService.StartEnumerationOnEngineAsync(TargetEnginePodName, Config, SeedAssets, SubmitDomainsAsFqdns, progress)
+            : await EnumerationService.StartEnumerationAsync(Config, SeedAssets, SubmitDomainsAsFqdns, progress);
+
+        if (_result.Success)
+        {
+            DialogService.Close(_result);
+        }
+        else
+        {
+            _error = _result.ErrorMessage ?? "An unknown error occurred.";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

@@ -239,28 +239,8 @@
 
         if (result is CreateSessionDialogResult dialogResult)
         {
-            var config = dialogResult.Config;
-            var enumResult = dialogResult.UseSameEngine && !string.IsNullOrEmpty(dialogResult.TargetEnginePodName)
-                ? await EnumerationService.StartEnumerationOnEngineAsync(dialogResult.TargetEnginePodName, config, dialogResult.Assets, dialogResult.SubmitDomainsAsFqdnAssets)
-                : await EnumerationService.StartEnumerationAsync(config, dialogResult.Assets, dialogResult.SubmitDomainsAsFqdnAssets);
-
-            if (enumResult.Success)
-            {
-                NotificationService.Notify(NotificationSeverity.Success, "Enumeration started",
-                    $"Session {enumResult.SessionToken} on {enumResult.EnginePodName}");
-            }
-            else
-            {
-                var errorMessage = enumResult.ErrorMessage ?? "Unknown error";
-                NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", errorMessage);
-                var persistedData = new PersistedSessionData
-                {
-                    Config = config,
-                    Assets = dialogResult.Assets,
-                    SubmitDomainsAsFqdns = dialogResult.SubmitDomainsAsFqdnAssets
-                };
-                await SessionRepository.CreateFailedAsync(config.Scope?.Domains ?? [], persistedData.Serialize(), errorMessage);
-            }
+            var enumResult = await RunWithProgressDialog(dialogResult);
+            await HandleEnumerationResult(enumResult, dialogResult);
             await LoadSessions();
             await InvokeAsync(StateHasChanged);
         }
@@ -299,33 +279,13 @@
 
         if (result is CreateSessionDialogResult dialogResult)
         {
-            var newConfig = dialogResult.Config;
-            var enumResult = dialogResult.UseSameEngine && !string.IsNullOrEmpty(dialogResult.TargetEnginePodName)
-                ? await EnumerationService.StartEnumerationOnEngineAsync(dialogResult.TargetEnginePodName, newConfig, dialogResult.Assets, dialogResult.SubmitDomainsAsFqdnAssets)
-                : await EnumerationService.StartEnumerationAsync(newConfig, dialogResult.Assets, dialogResult.SubmitDomainsAsFqdnAssets);
-
-            if (enumResult.Success)
+            var enumResult = await RunWithProgressDialog(dialogResult);
+            if (enumResult?.Success == true && (session.IsFailed || session.IsCancelled))
             {
-                if (session.IsFailed || session.IsCancelled)
-                {
-                    await SessionRepository.DeleteAsync(session.Token);
-                    await SessionRepository.DeleteLogsAsync(session.Token);
-                }
-                NotificationService.Notify(NotificationSeverity.Success, "Enumeration started",
-                    $"Session {enumResult.SessionToken} on {enumResult.EnginePodName}");
+                await SessionRepository.DeleteAsync(session.Token);
+                await SessionRepository.DeleteLogsAsync(session.Token);
             }
-            else
-            {
-                var errorMessage = enumResult.ErrorMessage ?? "Unknown error";
-                NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", errorMessage);
-                var persistedData = new PersistedSessionData
-                {
-                    Config = newConfig,
-                    Assets = dialogResult.Assets,
-                    SubmitDomainsAsFqdns = dialogResult.SubmitDomainsAsFqdnAssets
-                };
-                await SessionRepository.CreateFailedAsync(newConfig.Scope?.Domains ?? [], persistedData.Serialize(), errorMessage);
-            }
+            await HandleEnumerationResult(enumResult, dialogResult);
             await LoadSessions();
             await InvokeAsync(StateHasChanged);
         }
@@ -449,9 +409,10 @@
             }
             else
             {
+                var persistedData = new PersistedSessionData { Config = config, Assets = data.Assets, SubmitDomainsAsFqdns = data.SubmitDomainsAsFqdns };
                 await SessionRepository.CreateFailedAsync(
                     config.Scope?.Domains ?? [],
-                    configJson,
+                    persistedData.Serialize(),
                     result.ErrorMessage ?? "Unknown error");
             }
         }
@@ -498,6 +459,47 @@
         if (diff.TotalHours < 1) return $"{(int)diff.TotalMinutes}m ago";
         if (diff.TotalDays < 1) return $"{(int)diff.TotalHours}h ago";
         return $"{(int)diff.TotalDays}d ago";
+    }
+
+    private async Task<EnumerationResult?> RunWithProgressDialog(CreateSessionDialogResult dialogResult)
+    {
+        var parameters = new Dictionary<string, object?>
+        {
+            { nameof(SessionProgressDialog.Config), dialogResult.Config },
+            { nameof(SessionProgressDialog.SeedAssets), dialogResult.Assets },
+            { nameof(SessionProgressDialog.SubmitDomainsAsFqdns), dialogResult.SubmitDomainsAsFqdnAssets },
+            { nameof(SessionProgressDialog.TargetEnginePodName),
+                dialogResult.UseSameEngine ? dialogResult.TargetEnginePodName : null },
+        };
+
+        var result = await DialogService.OpenAsync<SessionProgressDialog>("Creating Session",
+            parameters,
+            new DialogOptions { ShowClose = false, CloseDialogOnEsc = false, Width = "500px" });
+
+        return result as EnumerationResult;
+    }
+
+    private async Task HandleEnumerationResult(EnumerationResult? enumResult, CreateSessionDialogResult dialogResult)
+    {
+        if (enumResult is null) return;
+
+        if (enumResult.Success)
+        {
+            NotificationService.Notify(NotificationSeverity.Success, "Enumeration started",
+                $"Session {enumResult.SessionToken} on {enumResult.EnginePodName}");
+        }
+        else
+        {
+            var errorMessage = enumResult.ErrorMessage ?? "Unknown error";
+            NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", errorMessage);
+            var persistedData = new PersistedSessionData
+            {
+                Config = dialogResult.Config,
+                Assets = dialogResult.Assets,
+                SubmitDomainsAsFqdns = dialogResult.SubmitDomainsAsFqdnAssets
+            };
+            await SessionRepository.CreateFailedAsync(dialogResult.Config.Scope?.Domains ?? [], persistedData.Serialize(), errorMessage);
+        }
     }
 
     private bool _disposed;

@@ -201,102 +201,12 @@
         <RadzenCard>
             <RadzenText TextStyle="TextStyle.H6" class="rz-mb-2">Seed Assets</RadzenText>
             <RadzenStack Gap="0.75rem">
-                <div>
-                    <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">FQDNs</RadzenText>
-                    @if (Assets?.Fqdns is { Count: > 0 } fqdns)
-                    {
-                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                            @foreach (var fqdn in fqdns)
-                            {
-                                <RadzenBadge Text="@fqdn" BadgeStyle="BadgeStyle.Primary" />
-                            }
-                        </RadzenStack>
-                    }
-                    else
-                    {
-                        <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                    }
-                </div>
-                <div>
-                    <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">IP Addresses</RadzenText>
-                    @if (Assets?.IpAddresses is { Count: > 0 } assetIps)
-                    {
-                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                            @foreach (var ip in assetIps)
-                            {
-                                <RadzenBadge Text="@ip" BadgeStyle="BadgeStyle.Info" />
-                            }
-                        </RadzenStack>
-                    }
-                    else
-                    {
-                        <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                    }
-                </div>
-                <div>
-                    <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Autonomous Systems</RadzenText>
-                    @if (Assets?.AutonomousSystems is { Count: > 0 } assetAsns)
-                    {
-                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                            @foreach (var asn in assetAsns)
-                            {
-                                <RadzenBadge Text="@($"AS{asn}")" BadgeStyle="BadgeStyle.Info" />
-                            }
-                        </RadzenStack>
-                    }
-                    else
-                    {
-                        <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                    }
-                </div>
-                <div>
-                    <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Netblocks</RadzenText>
-                    @if (Assets?.Netblocks is { Count: > 0 } netblocks)
-                    {
-                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                            @foreach (var nb in netblocks)
-                            {
-                                <RadzenBadge Text="@nb" BadgeStyle="BadgeStyle.Info" />
-                            }
-                        </RadzenStack>
-                    }
-                    else
-                    {
-                        <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                    }
-                </div>
-                <div>
-                    <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Organizations</RadzenText>
-                    @if (Assets?.Organizations is { Count: > 0 } orgs)
-                    {
-                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                            @foreach (var org in orgs)
-                            {
-                                <RadzenBadge Text="@org" BadgeStyle="BadgeStyle.Secondary" />
-                            }
-                        </RadzenStack>
-                    }
-                    else
-                    {
-                        <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                    }
-                </div>
-                <div>
-                    <RadzenText TextStyle="TextStyle.Subtitle2" class="rz-mb-1">Locations</RadzenText>
-                    @if (Assets?.Locations is { Count: > 0 } locs)
-                    {
-                        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
-                            @foreach (var loc in locs)
-                            {
-                                <RadzenBadge Text="@loc" BadgeStyle="BadgeStyle.Secondary" />
-                            }
-                        </RadzenStack>
-                    }
-                    else
-                    {
-                        <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">None</RadzenText>
-                    }
-                </div>
+                <AssetListDisplay Label="FQDNs" Items="@(Assets?.Fqdns)" BadgeStyle="BadgeStyle.Primary" />
+                <AssetListDisplay Label="IP Addresses" Items="@(Assets?.IpAddresses)" BadgeStyle="BadgeStyle.Info" />
+                <AssetListDisplay Label="Autonomous Systems" Items="@(Assets?.AutonomousSystems?.Select(a => $"AS{a}").ToList())" BadgeStyle="BadgeStyle.Info" />
+                <AssetListDisplay Label="Netblocks" Items="@(Assets?.Netblocks)" BadgeStyle="BadgeStyle.Info" />
+                <AssetListDisplay Label="Organizations" Items="@(Assets?.Organizations)" BadgeStyle="BadgeStyle.Secondary" />
+                <AssetListDisplay Label="Locations" Items="@(Assets?.Locations)" BadgeStyle="BadgeStyle.Secondary" />
             </RadzenStack>
         </RadzenCard>
     </RadzenStack>

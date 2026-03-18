@@ -21,55 +21,55 @@ else
         <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@_stats.TotalSessions</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Total Sessions</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-secondary-color);">Total Sessions</RadzenText>
             </RadzenCard>
         </RadzenColumn>
         <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0" Style="color: var(--rz-success);">@_stats.CompletedSessions</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Completed</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-secondary-color);">Completed</RadzenText>
             </RadzenCard>
         </RadzenColumn>
         <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0" Style="color: var(--rz-danger);">@_stats.FailedSessions</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Failed</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-secondary-color);">Failed</RadzenText>
             </RadzenCard>
         </RadzenColumn>
         <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0" Style="color: var(--rz-info);">@_stats.ActiveSessions</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Active</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-secondary-color);">Active</RadzenText>
             </RadzenCard>
         </RadzenColumn>
         <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@_stats.TotalWorkItemsProcessed</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Work Items Processed</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-secondary-color);">Work Items Processed</RadzenText>
             </RadzenCard>
         </RadzenColumn>
         <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@(_stats.SuccessRate.ToString("F1"))%</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Success Rate</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-secondary-color);">Success Rate</RadzenText>
             </RadzenCard>
         </RadzenColumn>
         <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@(_stats.AverageDurationMinutes.ToString("F1"))m</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Avg Duration</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-secondary-color);">Avg Duration</RadzenText>
             </RadzenCard>
         </RadzenColumn>
         <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@(_stats.MinDurationMinutes.ToString("F1"))m / @(_stats.MaxDurationMinutes.ToString("F1"))m</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Min / Max Duration</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-secondary-color);">Min / Max Duration</RadzenText>
             </RadzenCard>
         </RadzenColumn>
         <RadzenColumn Size="@miniCardWidth">
             <RadzenCard class="rz-text-align-center">
                 <RadzenText TextStyle="TextStyle.H3" class="rz-mb-0">@(_stats.AverageThroughputPerSecond.ToString("F2"))</RadzenText>
-                <RadzenText TextStyle="TextStyle.Body2" class="rz-color-secondary">Avg Items/s</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" Style="color: var(--rz-text-secondary-color);">Avg Items/s</RadzenText>
             </RadzenCard>
         </RadzenColumn>
     </RadzenRow>
