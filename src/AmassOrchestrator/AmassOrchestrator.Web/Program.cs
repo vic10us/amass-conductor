@@ -43,11 +43,14 @@ builder.Services.AddSingleton<IKubernetes>(_ =>
     }
     catch
     {
-        config = KubernetesClientConfiguration.BuildConfigFromConfigFile();
+        var kubeConfigPath = orchestratorConfig.KubeConfigPath;
+        var kubeContext = orchestratorConfig.KubeContext;
+        config = KubernetesClientConfiguration.BuildConfigFromConfigFile(kubeConfigPath, kubeContext);
     }
     return new Kubernetes(config);
 });
 
+builder.Services.AddSingleton<KubernetesContextService>();
 builder.Services.AddSingleton<IKubernetesDiscoveryService, KubernetesDiscoveryService>();
 builder.Services.AddSingleton<IAmassEngineClient, AmassEngineClient>();
 builder.Services.AddSingleton<EngineStateStore>();

@@ -2,8 +2,10 @@
 @inject IOptionsMonitor<AmassOrchestrator.Web.Configuration.OrchestratorOptions> OptionsMonitor
 @inject IConfiguration Configuration
 @inject NotificationService NotificationService
+@inject AmassOrchestrator.Web.Services.KubernetesContextService KubernetesContextService
 @using Microsoft.Extensions.Options
 @using AmassOrchestrator.Web.Configuration
+@using k8s
 
 <PageTitle>Settings - Amass Conductor</PageTitle>
 
@@ -29,13 +31,40 @@
         <RadzenFormField Text="Database Path">
             <RadzenTextBox Value="@_databasePath" ReadOnly="true" />
         </RadzenFormField>
+
+        @if (_availableContexts.Count > 0)
+        {
+            <RadzenFormField Text="Kubeconfig Context">
+                <RadzenDropDown TValue="string"
+                                Data="@_contextOptions"
+                                TextProperty="Label"
+                                ValueProperty="Value"
+                                @bind-Value="@_kubeContext"
+                                Style="width: 100%;" />
+            </RadzenFormField>
+        }
+        else if (!_isInCluster)
+        {
+            <RadzenFormField Text="Kubeconfig Context">
+                <RadzenTextBox @bind-Value="@_kubeContext" Placeholder="(default context)" />
+            </RadzenFormField>
+        }
+
         <RadzenButton Text="Save" Icon="save" ButtonStyle="ButtonStyle.Primary" Click="@Save" />
     </RadzenStack>
 </RadzenCard>
 
 <RadzenAlert AlertStyle="AlertStyle.Info" class="rz-mt-4" Style="max-width: 600px;">
     Note: Runtime setting changes apply to the current process only and are not persisted to appsettings.json.
+    Kubeconfig context changes require an application restart to take effect.
 </RadzenAlert>
+
+@if (_isInCluster)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Success" class="rz-mt-2" Style="max-width: 600px;">
+        Running in-cluster: kubeconfig context selection is not applicable.
+    </RadzenAlert>
+}
 
 @code {
     private string _namespace = "default";
@@ -44,6 +73,12 @@
     private int _pollInterval = 10;
     private int _maxActiveSessionsPerEngine = 1;
     private string _databasePath = "";
+    private string? _kubeContext;
+    private bool _isInCluster;
+    private IReadOnlyList<string> _availableContexts = [];
+
+    private record ContextOption(string Value, string Label);
+    private IReadOnlyList<ContextOption> _contextOptions = [];
 
     protected override void OnInitialized()
     {
@@ -54,6 +89,26 @@
         _pollInterval = current.PollIntervalSeconds;
         _maxActiveSessionsPerEngine = current.MaxActiveSessionsPerEngine;
         _databasePath = current.DatabasePath;
+        _kubeContext = current.KubeContext;
+
+        try
+        {
+            KubernetesClientConfiguration.InClusterConfig();
+            _isInCluster = true;
+        }
+        catch
+        {
+            _isInCluster = false;
+            _availableContexts = KubernetesContextService.GetAvailableContexts(current.KubeConfigPath);
+            var kubeCurrentContext = KubernetesContextService.GetCurrentContext(current.KubeConfigPath);
+
+            var options = new List<ContextOption>
+            {
+                new ContextOption("", $"(default: {kubeCurrentContext ?? "unknown"})")
+            };
+            options.AddRange(_availableContexts.Select(c => new ContextOption(c, c)));
+            _contextOptions = options;
+        }
     }
 
     private void Save()
@@ -64,7 +119,11 @@
         Configuration[$"{OrchestratorOptions.SectionName}:{nameof(OrchestratorOptions.EnginePort)}"] = _enginePort.ToString();
         Configuration[$"{OrchestratorOptions.SectionName}:{nameof(OrchestratorOptions.PollIntervalSeconds)}"] = _pollInterval.ToString();
         Configuration[$"{OrchestratorOptions.SectionName}:{nameof(OrchestratorOptions.MaxActiveSessionsPerEngine)}"] = _maxActiveSessionsPerEngine.ToString();
+        Configuration[$"{OrchestratorOptions.SectionName}:{nameof(OrchestratorOptions.KubeContext)}"] = _kubeContext ?? "";
 
-        NotificationService.Notify(NotificationSeverity.Success, "Settings saved", "Changes take effect on next poll cycle.");
+        var message = _kubeContext != null && !_isInCluster
+            ? "Context change takes effect after restart."
+            : "Changes take effect on next poll cycle.";
+        NotificationService.Notify(NotificationSeverity.Success, "Settings saved", message);
     }
 }
