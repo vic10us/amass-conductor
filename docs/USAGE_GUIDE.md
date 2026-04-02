@@ -228,6 +228,48 @@ Runtime configuration for the orchestrator. Changes apply immediately in memory 
 **Read-only fields:**
 - Database Path
 
+## Engine Discovery
+
+The orchestrator continuously discovers Amass engine pods by polling the Kubernetes API every `PollIntervalSeconds` (default: 2 seconds). The same discovery logic runs in both runtime modes — the only difference is how the Kubernetes client authenticates.
+
+### In-Cluster Mode
+
+When the orchestrator itself runs as a pod inside the cluster, it loads credentials from the pod's mounted **service account token** (`/var/run/secrets/kubernetes.io/serviceaccount/`). No additional configuration is needed. The Helm chart automatically creates a `Role` and `RoleBinding` granting the orchestrator `get`, `list`, and `watch` access to pods in the engine namespace.
+
+This is the default and expected mode for production deployments.
+
+### Out-of-Cluster / External Runtime Mode
+
+When running outside the cluster (e.g., local development, Docker on a workstation), the in-cluster credential mount is absent. The orchestrator detects this and falls back to loading a **kubeconfig file** instead:
+
+| Setting | Default | Environment Variable |
+|---------|---------|----------------------|
+| `KubeConfigPath` | `~/.kube/config` | `Orchestrator__KubeConfigPath` |
+| `KubeContext` | _(active context)_ | `Orchestrator__KubeContext` |
+
+Set `KubeContext` to the name of the cluster context you want to use when multiple clusters are configured in your kubeconfig. If omitted, the active context is used.
+
+> The kubeconfig context selector in the UI (Settings page) reflects this: it reads available contexts from the kubeconfig file and lets you switch without restarting.
+
+### Discovery Process (same in both modes)
+
+Once the Kubernetes client is initialised, the `KubernetesDiscoveryService` runs the following on every poll:
+
+1. **List pods** — calls `ListNamespacedPod` with the configured `Namespace` and `LabelSelector`
+2. **Filter** — drops any pod that has no assigned IP yet
+3. **Map** — extracts name, pod IP, phase (Running/Pending/etc.), readiness condition, ordinal (parsed from the pod name suffix, e.g. `amass-engine-2` → `2`), and any `amass.io/` annotations
+4. **Sort** — orders results by ordinal so engine-0 is always first
+
+Default discovery parameters (all overridable in Settings or via env vars):
+
+| Parameter | Default | Purpose |
+|-----------|---------|---------|
+| `Namespace` | `amass` | Kubernetes namespace to search |
+| `LabelSelector` | `app.kubernetes.io/name=amass,app.kubernetes.io/component=engine` | Pod label filter |
+| `EnginePort` | `4000` | Port the engine API listens on |
+
+After discovery, the `EngineMonitorService` health-checks each pod over HTTP and stores the result in the in-memory `EngineStateStore`. The Dashboard re-renders automatically on each state change.
+
 ## Session Lifecycle Operations
 
 | Operation | Applies To | What It Does |
