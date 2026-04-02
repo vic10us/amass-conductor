@@ -23,4 +23,8 @@ public class OrchestratorOptions
     public string InstanceId { get; set; } = Environment.MachineName;
     public string? AmassDbConnectionString { get; set; }
     public int BulkAssetBatchSize { get; set; } = 1000;
+
+    // Out-of-cluster kubeconfig settings (ignored when running in-cluster)
+    public string? KubeConfigPath { get; set; }
+    public string? KubeContext { get; set; }
 }
