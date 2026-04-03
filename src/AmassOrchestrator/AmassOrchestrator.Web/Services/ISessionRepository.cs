@@ -21,4 +21,6 @@ public interface ISessionRepository
     Task MarkCancelledAsync(string token);
     Task MarkFailedAsync(string token, string errorMessage);
     Task<HashSet<string>> GetOwnedActiveTokensAsync();
+    Task UpsertHeartbeatAsync();
+    Task<int> ClaimAbandonedSessionsAsync(TimeSpan staleThreshold);
 }

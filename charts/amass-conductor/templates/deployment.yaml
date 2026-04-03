@@ -60,6 +60,13 @@ spec:
                   name: {{ .Values.orchestrator.amassDbExistingSecret }}
                   key: {{ .Values.orchestrator.amassDbExistingSecretKey | default "connection-string" }}
             {{- end }}
+            {{- if .Values.orchestrator.orchestratorDbExistingSecret }}
+            - name: Orchestrator__OrchestratorDbConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.orchestrator.orchestratorDbExistingSecret }}
+                  key: {{ .Values.orchestrator.orchestratorDbExistingSecretKey | default "connection-string" }}
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

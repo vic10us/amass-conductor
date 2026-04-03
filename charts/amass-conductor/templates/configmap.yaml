@@ -20,3 +20,6 @@ data:
   {{- if and .Values.orchestrator.amassDbConnectionString (not .Values.orchestrator.amassDbExistingSecret) }}
   Orchestrator__AmassDbConnectionString: {{ .Values.orchestrator.amassDbConnectionString | quote }}
   {{- end }}
+  {{- if and .Values.orchestrator.orchestratorDbConnectionString (not .Values.orchestrator.orchestratorDbExistingSecret) }}
+  Orchestrator__OrchestratorDbConnectionString: {{ .Values.orchestrator.orchestratorDbConnectionString | quote }}
+  {{- end }}

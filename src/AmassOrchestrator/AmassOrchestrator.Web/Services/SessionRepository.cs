@@ -51,7 +51,7 @@ public class SessionRepository : ISessionRepository
 
         if (record == null)
         {
-            // Not our session — skip
+            // Session exists on the engine but was not created by this cluster — ignore it
             return;
         }
 
@@ -73,7 +73,6 @@ public class SessionRepository : ISessionRepository
     {
         await using var db = await _contextFactory.CreateDbContextAsync();
         return await db.Sessions
-            .Where(s => s.InstanceId == _instanceId)
             .OrderByDescending(s => s.CreatedAtUtc)
             .ToListAsync();
     }
@@ -82,7 +81,7 @@ public class SessionRepository : ISessionRepository
     {
         await using var db = await _contextFactory.CreateDbContextAsync();
         return await db.Sessions
-            .Where(s => s.InstanceId == _instanceId && !s.IsCompleted)
+            .Where(s => !s.IsCompleted)
             .OrderByDescending(s => s.CreatedAtUtc)
             .ToListAsync();
     }
@@ -217,5 +216,35 @@ public class SessionRepository : ISessionRepository
             .Select(s => s.Token)
             .ToListAsync();
         return tokens.ToHashSet();
+    }
+
+    public async Task UpsertHeartbeatAsync()
+    {
+        await using var db = await _contextFactory.CreateDbContextAsync();
+        var existing = await db.ConductorHeartbeats.FindAsync(_instanceId);
+        if (existing == null)
+            db.ConductorHeartbeats.Add(new Data.ConductorHeartbeat { InstanceId = _instanceId, LastHeartbeatUtc = DateTime.UtcNow });
+        else
+            existing.LastHeartbeatUtc = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
+    public async Task<int> ClaimAbandonedSessionsAsync(TimeSpan staleThreshold)
+    {
+        await using var db = await _contextFactory.CreateDbContextAsync();
+        var cutoff = DateTime.UtcNow - staleThreshold;
+
+        var deadInstanceIds = await db.ConductorHeartbeats
+            .Where(h => h.InstanceId != _instanceId && h.LastHeartbeatUtc < cutoff)
+            .Select(h => h.InstanceId)
+            .ToListAsync();
+
+        if (deadInstanceIds.Count == 0) return 0;
+
+        return await db.Sessions
+            .Where(s => deadInstanceIds.Contains(s.InstanceId) && !s.IsCompleted && !s.IsFailed && !s.IsCancelled)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.InstanceId, _instanceId)
+                .SetProperty(x => x.UpdatedAtUtc, DateTime.UtcNow));
     }
 }

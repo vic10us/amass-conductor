@@ -9,6 +9,7 @@ public class OrchestratorDbContext : DbContext
     public DbSet<SessionRecord> Sessions => Set<SessionRecord>();
     public DbSet<LogRecord> Logs => Set<LogRecord>();
     public DbSet<SessionTemplateRecord> SessionTemplates => Set<SessionTemplateRecord>();
+    public DbSet<ConductorHeartbeat> ConductorHeartbeats => Set<ConductorHeartbeat>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -30,6 +31,11 @@ public class OrchestratorDbContext : DbContext
         modelBuilder.Entity<SessionTemplateRecord>(entity =>
         {
             entity.HasIndex(e => e.InstanceId);
+        });
+
+        modelBuilder.Entity<ConductorHeartbeat>(entity =>
+        {
+            entity.HasKey(e => e.InstanceId);
         });
     }
 }

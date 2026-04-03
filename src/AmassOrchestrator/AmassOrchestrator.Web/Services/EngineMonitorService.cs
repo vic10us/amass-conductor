@@ -171,6 +171,8 @@ public class EngineMonitorService : BackgroundService
 
         _stateStore.RemoveStale(activePodNames);
 
+        await _sessionRepository.UpsertHeartbeatAsync();
+
         if (!_hasCompletedInitialPoll)
         {
             _hasCompletedInitialPoll = true;
@@ -178,6 +180,11 @@ public class EngineMonitorService : BackgroundService
         else
         {
             await DetectOrphanedSessionsAsync();
+
+            var staleThreshold = TimeSpan.FromSeconds(Math.Max(30, _options.CurrentValue.PollIntervalSeconds * 5));
+            var claimed = await _sessionRepository.ClaimAbandonedSessionsAsync(staleThreshold);
+            if (claimed > 0)
+                _logger.LogInformation("Claimed {Count} abandoned session(s) from dead conductor instance(s)", claimed);
         }
     }
 
