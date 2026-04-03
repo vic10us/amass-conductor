@@ -54,14 +54,6 @@ PG_URI="postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:${PG_PORT}/${PG_DB}"
 LOAD_FILE="$(mktemp /tmp/pgloader-orchestrator-XXXXXX.load)"
 trap 'rm -f "$LOAD_FILE"' EXIT
 
-# WITH include drop,
-#      create tables,
-#      create indexes,
-#      reset sequences,
-#      quote identifiers,
-#      workers = 4, concurrency = 1
-# column "Logs"."TimestampUtc" to timestamptz using zero-dates-to-null,
-
 cat > "$LOAD_FILE" <<PGLOADER
 LOAD DATABASE
      FROM sqlite:///${SQLITE_PATH}
