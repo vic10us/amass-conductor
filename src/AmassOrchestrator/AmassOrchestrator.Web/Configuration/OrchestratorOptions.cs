@@ -22,6 +22,7 @@ public class OrchestratorOptions
     public bool AutoDeleteCompletedSessions { get; set; } = true;
     public string InstanceId { get; set; } = Environment.MachineName;
     public string? AmassDbConnectionString { get; set; }
+    public string? OrchestratorDbConnectionString { get; set; }
     public int BulkAssetBatchSize { get; set; } = 1000;
 
     // Out-of-cluster kubeconfig settings (ignored when running in-cluster)

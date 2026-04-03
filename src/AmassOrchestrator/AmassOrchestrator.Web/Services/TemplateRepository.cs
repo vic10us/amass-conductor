@@ -25,7 +25,6 @@ public class TemplateRepository : ITemplateRepository
     {
         await using var db = await _contextFactory.CreateDbContextAsync();
         return await db.SessionTemplates
-            .Where(t => t.InstanceId == _instanceId)
             .OrderByDescending(t => t.UpdatedAtUtc)
             .ToListAsync();
     }
@@ -52,7 +51,7 @@ public class TemplateRepository : ITemplateRepository
     public async Task UpdateAsync(int id, string name, string? description, string configJson)
     {
         await using var db = await _contextFactory.CreateDbContextAsync();
-        var record = await db.SessionTemplates.FirstOrDefaultAsync(t => t.Id == id && t.InstanceId == _instanceId);
+        var record = await db.SessionTemplates.FirstOrDefaultAsync(t => t.Id == id);
         if (record == null) return;
 
         record.Name = name;
@@ -66,7 +65,7 @@ public class TemplateRepository : ITemplateRepository
     public async Task DeleteAsync(int id)
     {
         await using var db = await _contextFactory.CreateDbContextAsync();
-        var record = await db.SessionTemplates.FirstOrDefaultAsync(t => t.Id == id && t.InstanceId == _instanceId);
+        var record = await db.SessionTemplates.FirstOrDefaultAsync(t => t.Id == id);
         if (record == null) return;
 
         db.SessionTemplates.Remove(record);

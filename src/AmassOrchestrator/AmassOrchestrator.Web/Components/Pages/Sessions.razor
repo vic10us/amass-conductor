@@ -136,6 +136,8 @@
     private List<SessionViewModel> _allSessions = [];
     private readonly List<SessionViewModel> _filteredSessions = [];
     private IList<SessionViewModel> _selectedSessions = new List<SessionViewModel>();
+    private Dictionary<string, SessionViewModel> _sessionIndex = [];
+    private bool _needsFullReload;
 
     private string _statusFilter = "All";
     private string? _engineFilter;
@@ -201,8 +203,54 @@
         }
 
         _allSessions = viewModels.Values.OrderByDescending(s => s.CreatedAtUtc).ToList();
+        _sessionIndex = _allSessions.ToDictionary(s => s.Token);
         _engineOptions = _allSessions.Select(s => s.EnginePodName).Distinct().OrderBy(e => e).ToList();
         ApplyFilters();
+    }
+
+    private void UpdateLiveStateInPlace()
+    {
+        var liveStates = StateStore.States;
+
+        var liveSessionMap = new Dictionary<string, (SessionInfo Session, string PodIp)>();
+        foreach (var kvp in liveStates)
+            foreach (var session in kvp.Value.Sessions)
+                liveSessionMap[session.Token] = (session, kvp.Value.Pod.PodIP);
+
+        // If any live token is brand-new, fall back to full load (new session just started)
+        foreach (var token in liveSessionMap.Keys)
+        {
+            if (!_sessionIndex.ContainsKey(token))
+            {
+                _needsFullReload = true;
+                return;
+            }
+        }
+
+        var filterMembershipMayHaveChanged = false;
+
+        foreach (var vm in _sessionIndex.Values)
+        {
+            if (liveSessionMap.TryGetValue(vm.Token, out var live))
+            {
+                vm.WorkItemsCompleted = live.Session.WorkItemsCompleted;
+                vm.WorkItemsTotal = live.Session.WorkItemsTotal;
+                var wasCompleted = vm.IsCompleted;
+                vm.IsCompleted = live.Session.IsCompleted;
+                if (vm.IsCompleted != wasCompleted)
+                    filterMembershipMayHaveChanged = true;
+                vm.IsLive = true;
+                vm.PodIp = live.PodIp;
+            }
+            else if (vm.IsLive)
+            {
+                vm.IsLive = false;
+                vm.PodIp = null;
+            }
+        }
+
+        if (filterMembershipMayHaveChanged)
+            ApplyFilters();
     }
 
     private void ApplyFilters()
@@ -224,8 +272,11 @@
         if (!string.IsNullOrEmpty(_domainSearch))
             filtered = filtered.Where(s => s.Domains != null && s.Domains.Contains(_domainSearch, StringComparison.OrdinalIgnoreCase));
 
+        var newFiltered = filtered.ToList();
+        if (newFiltered.Count == _filteredSessions.Count && newFiltered.SequenceEqual(_filteredSessions))
+            return;
         _filteredSessions.Clear();
-        _filteredSessions.AddRange(filtered);
+        _filteredSessions.AddRange(newFiltered);
     }
 
     private async void HandleStateChanged()
@@ -233,9 +284,20 @@
         if (_disposed) return;
         try
         {
-            await InvokeAsync(LoadSessions);
-            if (_grid is not null)
-                await InvokeAsync(_grid.Reload);
+            await InvokeAsync(async () =>
+            {
+                _needsFullReload = false;
+                UpdateLiveStateInPlace();
+
+                if (_needsFullReload)
+                {
+                    await LoadSessions();
+                    if (_grid is not null)
+                        await _grid.Reload();
+                }
+
+                StateHasChanged();
+            });
         }
         catch (ObjectDisposedException) { }
     }

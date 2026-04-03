@@ -75,6 +75,13 @@ orchestrator:
   # Use an existing secret for the connection string instead of values
   amassDbExistingSecret: ""
   amassDbExistingSecretKey: "connection-string"
+  # PostgreSQL connection string for the orchestrator database (optional)
+  # If set, uses PostgreSQL instead of SQLite. SQLite is the default.
+  # Example: "Host=pg-host;Port=5432;Database=orchestrator;Username=app;Password=secret"
+  orchestratorDbConnectionString: ""
+  # Use an existing secret for the orchestrator DB connection string instead of values
+  orchestratorDbExistingSecret: ""
+  orchestratorDbExistingSecretKey: "connection-string"
 
 # ASP.NET Core settings
 aspnetcore:
