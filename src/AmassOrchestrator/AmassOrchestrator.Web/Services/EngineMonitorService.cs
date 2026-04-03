@@ -77,7 +77,6 @@ public class EngineMonitorService : BackgroundService
 
             if (listResponse?.SessionTokens != null)
             {
-
                 foreach (var sessionToken in listResponse.SessionTokens)
                 {
                     var stats = await _engineClient.GetSessionStatsAsync(pod.PodIP, port, sessionToken, token);
@@ -156,6 +155,12 @@ public class EngineMonitorService : BackgroundService
                         _logger.LogWarning(ex, "Failed to persist session {Token} to database", sessionToken);
                     }
                 }
+            }
+            else if (previousState != null)
+            {
+                // Transient error listing sessions — preserve last known state to avoid false orphan detection
+                sessions = previousState.Sessions.ToList();
+                _logger.LogWarning("Failed to list sessions from engine {Pod} — preserving previous session state", pod.PodName);
             }
 
             var annotationInfo = PodAnnotationInfo.FromAnnotations(pod.Annotations);
