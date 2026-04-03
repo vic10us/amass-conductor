@@ -138,6 +138,7 @@
     private IList<SessionViewModel> _selectedSessions = new List<SessionViewModel>();
     private Dictionary<string, SessionViewModel> _sessionIndex = [];
     private bool _needsFullReload;
+    private bool _needsGridReload;
 
     private string _statusFilter = "All";
     private string? _engineFilter;
@@ -277,6 +278,7 @@
             return;
         _filteredSessions.Clear();
         _filteredSessions.AddRange(newFiltered);
+        _needsGridReload = true;
     }
 
     private async void HandleStateChanged()
@@ -637,6 +639,15 @@
                 SubmitDomainsAsFqdns = dialogResult.SubmitDomainsAsFqdnAssets
             };
             await SessionRepository.CreateFailedAsync(dialogResult.Config.Scope?.Domains ?? [], persistedData.Serialize(), errorMessage);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_needsGridReload && _grid is not null)
+        {
+            _needsGridReload = false;
+            await _grid.Reload();
         }
     }
 

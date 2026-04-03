@@ -7,7 +7,11 @@ metadata:
 spec:
   replicas: {{ .Values.replicaCount }}
   strategy:
+    {{- if or .Values.orchestrator.orchestratorDbConnectionString .Values.orchestrator.orchestratorDbExistingSecret }}
+    type: RollingUpdate
+    {{- else }}
     type: Recreate
+    {{- end }}
   selector:
     matchLabels:
       {{- include "amass-conductor.selectorLabels" . | nindent 6 }}
