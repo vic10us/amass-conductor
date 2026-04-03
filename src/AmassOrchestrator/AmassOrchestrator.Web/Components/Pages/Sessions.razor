@@ -7,8 +7,10 @@
 @inject IOptions<AmassOrchestrator.Web.Configuration.OrchestratorOptions> Options
 @inject DialogService DialogService
 @inject NotificationService NotificationService
+@inject ITemplateRepository TemplateRepository
 @using Microsoft.Extensions.Options
 @using System.Text.Json
+@using AmassOrchestrator.Web.Models
 
 <PageTitle>Sessions - Amass Conductor</PageTitle>
 
@@ -95,12 +97,16 @@
                 @FormatRelativeTime(session.CreatedAtUtc)
             </Template>
         </RadzenDataGridColumn>
-        <RadzenDataGridColumn TItem="SessionViewModel" Title="Actions" Width="130px" Sortable="false">
+        <RadzenDataGridColumn TItem="SessionViewModel" Title="Actions" Width="200px" Sortable="false">
             <Template Context="session">
                 @if (session.IsFailed || session.IsCancelled)
                 {
                     <RadzenButton Icon="replay" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.ExtraSmall"
                                   Variant="Variant.Text" Click="@(() => RestartSession(session))" title="Retry" />
+                    <RadzenButton Icon="content_copy" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.ExtraSmall"
+                                  Variant="Variant.Text" Click="@(() => CloneSession(session))" title="Clone" />
+                    <RadzenButton Icon="bookmark_add" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.ExtraSmall"
+                                  Variant="Variant.Text" Click="@(() => SaveSessionAsTemplate(session))" title="Save as Template" />
                     <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.ExtraSmall"
                                   Variant="Variant.Text" Click="@(() => DeleteSession(session))" title="Delete" />
                 }
@@ -113,6 +119,10 @@
                 {
                     <RadzenButton Icon="replay" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.ExtraSmall"
                                   Variant="Variant.Text" Click="@(() => RestartSession(session))" title="Restart" />
+                    <RadzenButton Icon="content_copy" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.ExtraSmall"
+                                  Variant="Variant.Text" Click="@(() => CloneSession(session))" title="Clone" />
+                    <RadzenButton Icon="bookmark_add" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.ExtraSmall"
+                                  Variant="Variant.Text" Click="@(() => SaveSessionAsTemplate(session))" title="Save as Template" />
                     <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.ExtraSmall"
                                   Variant="Variant.Text" Click="@(() => DeleteSession(session))" title="Delete" />
                 }
@@ -223,11 +233,9 @@
         if (_disposed) return;
         try
         {
-            await InvokeAsync(async () =>
-            {
-                await LoadSessions();
-                StateHasChanged();
-            });
+            await InvokeAsync(LoadSessions);
+            if (_grid is not null)
+                await InvokeAsync(_grid.Reload);
         }
         catch (ObjectDisposedException) { }
     }
@@ -288,6 +296,74 @@
             await HandleEnumerationResult(enumResult, dialogResult);
             await LoadSessions();
             await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task CloneSession(SessionViewModel session)
+    {
+        var configJson = await SessionRepository.GetConfigJsonAsync(session.Token);
+        if (string.IsNullOrEmpty(configJson))
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "No saved config", "Cannot clone — configuration not found.");
+            return;
+        }
+
+        var data = PersistedSessionData.Deserialize(configJson);
+        if (data.Config == null)
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "Invalid config", "Cannot clone — configuration could not be parsed.");
+            return;
+        }
+
+        var parameters = new Dictionary<string, object?>
+        {
+            { nameof(CreateSessionDialog.InitialConfig), data.Config },
+            { nameof(CreateSessionDialog.ShowEngineChoice), false },
+            { nameof(CreateSessionDialog.InitialAssets), data.Assets },
+            { nameof(CreateSessionDialog.InitialSubmitDomainsAsFqdns), (bool?)data.SubmitDomainsAsFqdns },
+            { nameof(CreateSessionDialog.SubmitButtonLabel), "Clone" }
+        };
+
+        var result = await DialogService.OpenAsync<CreateSessionDialog>(
+            "Clone Session", parameters, new DialogOptions { Width = "80%" });
+
+        if (result is CreateSessionDialogResult dialogResult)
+        {
+            var enumResult = await RunWithProgressDialog(dialogResult);
+            // Original session is never deleted
+            await HandleEnumerationResult(enumResult, dialogResult);
+            await LoadSessions();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SaveSessionAsTemplate(SessionViewModel session)
+    {
+        var configJson = await SessionRepository.GetConfigJsonAsync(session.Token);
+        if (string.IsNullOrEmpty(configJson))
+        {
+            NotificationService.Notify(NotificationSeverity.Warning, "No saved config", "Cannot save — configuration not found.");
+            return;
+        }
+
+        var domains = FormatDomains(session.Domains);
+        var suggestedName = domains != "-"
+            ? domains.Split(',')[0].Trim()
+            : $"Template {DateTime.UtcNow:yyyy-MM-dd}";
+
+        var parameters = new Dictionary<string, object?>
+        {
+            { nameof(SaveAsTemplateDialog.ConfigJson), configJson },
+            { nameof(SaveAsTemplateDialog.SuggestedName), suggestedName }
+        };
+
+        var result = await DialogService.OpenAsync<SaveAsTemplateDialog>(
+            "Save as Template", parameters, new DialogOptions { Width = "500px" });
+
+        if (result is SaveAsTemplateDialogResult dialogResult)
+        {
+            await TemplateRepository.CreateAsync(dialogResult.Name, dialogResult.Description, dialogResult.ConfigJson);
+            NotificationService.Notify(NotificationSeverity.Success, "Template saved", dialogResult.Name);
         }
     }
 

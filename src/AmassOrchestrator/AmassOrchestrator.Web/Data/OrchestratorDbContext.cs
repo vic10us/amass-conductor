@@ -8,6 +8,7 @@ public class OrchestratorDbContext : DbContext
 
     public DbSet<SessionRecord> Sessions => Set<SessionRecord>();
     public DbSet<LogRecord> Logs => Set<LogRecord>();
+    public DbSet<SessionTemplateRecord> SessionTemplates => Set<SessionTemplateRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -24,6 +25,11 @@ public class OrchestratorDbContext : DbContext
         {
             entity.HasIndex(e => e.SessionToken);
             entity.HasIndex(e => e.TimestampUtc);
+        });
+
+        modelBuilder.Entity<SessionTemplateRecord>(entity =>
+        {
+            entity.HasIndex(e => e.InstanceId);
         });
     }
 }
