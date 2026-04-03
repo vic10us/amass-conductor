@@ -1,0 +1,55 @@
+@inject DialogService DialogService
+@using AmassOrchestrator.Web.Models
+
+<RadzenStack Gap="1rem">
+    <RadzenFormField Text="Name" Style="width: 100%;">
+        <RadzenTextBox @bind-Value="@_name" Style="width: 100%;" Placeholder="Enter template name..." />
+    </RadzenFormField>
+    <RadzenFormField Text="Description (optional)" Style="width: 100%;">
+        <RadzenTextArea @bind-Value="@_description" Rows="3" Style="width: 100%;" Placeholder="Describe what this template is for..." />
+    </RadzenFormField>
+
+    @if (!string.IsNullOrEmpty(_validationError))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" Shade="Shade.Lighter" Size="AlertSize.Small">
+            @_validationError
+        </RadzenAlert>
+    }
+
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+        <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@(() => DialogService.Close(null))" />
+        <RadzenButton Text="Save" ButtonStyle="ButtonStyle.Primary" Icon="save" Click="@OnSave" />
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    [Parameter] public string ConfigJson { get; set; } = string.Empty;
+    [Parameter] public string? SuggestedName { get; set; }
+    [Parameter] public string? SuggestedDescription { get; set; }
+
+    private string _name = string.Empty;
+    private string? _description;
+    private string? _validationError;
+
+    protected override void OnInitialized()
+    {
+        _name = SuggestedName ?? string.Empty;
+        _description = SuggestedDescription;
+    }
+
+    private void OnSave()
+    {
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            _validationError = "Name is required.";
+            return;
+        }
+
+        DialogService.Close(new SaveAsTemplateDialogResult
+        {
+            Name = _name.Trim(),
+            Description = string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
+            ConfigJson = ConfigJson
+        });
+    }
+}

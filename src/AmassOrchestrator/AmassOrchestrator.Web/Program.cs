@@ -65,6 +65,7 @@ if (!string.IsNullOrEmpty(dbDir))
 builder.Services.AddDbContextFactory<OrchestratorDbContext>(options =>
     options.UseSqlite($"Data Source={dbPath}"));
 builder.Services.AddSingleton<ISessionRepository, SessionRepository>();
+builder.Services.AddSingleton<ITemplateRepository, TemplateRepository>();
 
 // Amass PostgreSQL database (optional, read-only)
 var amassConnStr = orchestratorConfig.AmassDbConnectionString;
@@ -127,6 +128,21 @@ using (var scope = app.Services.CreateScope())
     var instanceId = orchestratorConfig.InstanceId;
     await db.Database.ExecuteSqlRawAsync(
         "UPDATE Sessions SET InstanceId = {0} WHERE InstanceId = ''", instanceId);
+
+    // Create SessionTemplates table (safe on every startup)
+    await db.Database.ExecuteSqlRawAsync("""
+        CREATE TABLE IF NOT EXISTS SessionTemplates (
+            Id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            Name         TEXT    NOT NULL,
+            Description  TEXT,
+            InstanceId   TEXT    NOT NULL DEFAULT '',
+            ConfigJson   TEXT    NOT NULL DEFAULT '',
+            CreatedAtUtc TEXT    NOT NULL,
+            UpdatedAtUtc TEXT    NOT NULL
+        )
+        """);
+    await db.Database.ExecuteSqlRawAsync(
+        "CREATE INDEX IF NOT EXISTS IX_SessionTemplates_InstanceId ON SessionTemplates (InstanceId)");
 }
 
 if (!app.Environment.IsDevelopment())

@@ -1,0 +1,244 @@
+@page "/templates"
+@inject ITemplateRepository TemplateRepository
+@inject ISessionRepository SessionRepository
+@inject IEnumerationService EnumerationService
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+@using System.Text.Json
+@using AmassOrchestrator.Web.Models
+@using AmassOrchestrator.Web.Data
+
+<PageTitle>Templates - Amass Conductor</PageTitle>
+
+<RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" class="rz-mb-4">
+    <RadzenText TextStyle="TextStyle.H4" class="rz-m-0">Session Templates</RadzenText>
+    <RadzenButton Text="New Template" Icon="add" ButtonStyle="ButtonStyle.Success" Click="@CreateTemplate" />
+</RadzenStack>
+
+@if (_templates.Count == 0)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Info" Shade="Shade.Lighter">
+        No templates saved yet. Click <strong>New Template</strong> to create one, or use the
+        <strong>Save as Template</strong> action on any session in the <RadzenLink Text="Sessions" Path="sessions" /> page.
+    </RadzenAlert>
+}
+else
+{
+    <RadzenDataGrid Data="@_templates" TItem="SessionTemplateRecord"
+                    AllowPaging="true" PageSize="20" AllowSorting="true"
+                    Density="Density.Compact" Style="width: 100%;">
+        <Columns>
+            <RadzenDataGridColumn TItem="SessionTemplateRecord" Property="Name" Title="Name" Width="200px" />
+            <RadzenDataGridColumn TItem="SessionTemplateRecord" Property="Description" Title="Description">
+                <Template Context="template">
+                    @(template.Description ?? "-")
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="SessionTemplateRecord" Property="CreatedAtUtc" Title="Created" Width="140px">
+                <Template Context="template">
+                    @FormatRelativeTime(template.CreatedAtUtc)
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="SessionTemplateRecord" Property="UpdatedAtUtc" Title="Updated" Width="140px">
+                <Template Context="template">
+                    @FormatRelativeTime(template.UpdatedAtUtc)
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="SessionTemplateRecord" Title="Actions" Width="120px" Sortable="false">
+                <Template Context="template">
+                    <RadzenButton Icon="play_arrow" ButtonStyle="ButtonStyle.Success" Size="ButtonSize.ExtraSmall"
+                                  Variant="Variant.Text" Click="@(() => UseTemplate(template))" title="Launch session from template" />
+                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.ExtraSmall"
+                                  Variant="Variant.Text" Click="@(() => EditTemplate(template))" title="Edit template" />
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.ExtraSmall"
+                                  Variant="Variant.Text" Click="@(() => DeleteTemplate(template))" title="Delete" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+}
+
+@code {
+    private List<SessionTemplateRecord> _templates = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTemplates();
+    }
+
+    private async Task LoadTemplates()
+    {
+        _templates = await TemplateRepository.GetAllAsync();
+    }
+
+    private async Task CreateTemplate()
+    {
+        var configResult = await DialogService.OpenAsync<CreateSessionDialog>(
+            "New Template",
+            new Dictionary<string, object?> { { nameof(CreateSessionDialog.SubmitButtonLabel), "Next: Name Template" } },
+            new DialogOptions { Width = "80%" });
+
+        if (configResult is not CreateSessionDialogResult dialogResult) return;
+
+        var persistedData = new PersistedSessionData
+        {
+            Config = dialogResult.Config,
+            Assets = dialogResult.Assets,
+            SubmitDomainsAsFqdns = dialogResult.SubmitDomainsAsFqdnAssets
+        };
+        var configJson = persistedData.Serialize();
+
+        var suggestedName = dialogResult.Config.Scope?.Domains?.FirstOrDefault() ?? $"Template {DateTime.UtcNow:yyyy-MM-dd}";
+
+        var nameResult = await DialogService.OpenAsync<SaveAsTemplateDialog>(
+            "Name Your Template",
+            new Dictionary<string, object?>
+            {
+                { nameof(SaveAsTemplateDialog.ConfigJson), configJson },
+                { nameof(SaveAsTemplateDialog.SuggestedName), suggestedName }
+            },
+            new DialogOptions { Width = "500px" });
+
+        if (nameResult is not SaveAsTemplateDialogResult nameDialogResult) return;
+
+        await TemplateRepository.CreateAsync(nameDialogResult.Name, nameDialogResult.Description, nameDialogResult.ConfigJson);
+        NotificationService.Notify(NotificationSeverity.Success, "Template created", nameDialogResult.Name);
+        await LoadTemplates();
+        StateHasChanged();
+    }
+
+    private async Task UseTemplate(SessionTemplateRecord template)
+    {
+        var data = PersistedSessionData.Deserialize(template.ConfigJson);
+        if (data.Config == null)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Invalid template", "Template configuration could not be parsed.");
+            return;
+        }
+
+        var parameters = new Dictionary<string, object?>
+        {
+            { nameof(CreateSessionDialog.InitialConfig), data.Config },
+            { nameof(CreateSessionDialog.ShowEngineChoice), false },
+            { nameof(CreateSessionDialog.InitialAssets), data.Assets },
+            { nameof(CreateSessionDialog.InitialSubmitDomainsAsFqdns), (bool?)data.SubmitDomainsAsFqdns },
+            { nameof(CreateSessionDialog.SubmitButtonLabel), "Launch" }
+        };
+
+        var result = await DialogService.OpenAsync<CreateSessionDialog>(
+            $"Launch: {template.Name}", parameters, new DialogOptions { Width = "80%" });
+
+        if (result is CreateSessionDialogResult dialogResult)
+        {
+            var enumResult = await RunWithProgressDialog(dialogResult);
+            await HandleEnumerationResult(enumResult, dialogResult);
+        }
+    }
+
+    private async Task EditTemplate(SessionTemplateRecord template)
+    {
+        var data = PersistedSessionData.Deserialize(template.ConfigJson);
+
+        var configParameters = new Dictionary<string, object?>
+        {
+            { nameof(CreateSessionDialog.InitialConfig), data.Config },
+            { nameof(CreateSessionDialog.ShowEngineChoice), false },
+            { nameof(CreateSessionDialog.InitialAssets), data.Assets },
+            { nameof(CreateSessionDialog.InitialSubmitDomainsAsFqdns), (bool?)data.SubmitDomainsAsFqdns },
+            { nameof(CreateSessionDialog.SubmitButtonLabel), "Next: Save Changes" }
+        };
+
+        var configResult = await DialogService.OpenAsync<CreateSessionDialog>(
+            $"Edit Template: {template.Name}", configParameters, new DialogOptions { Width = "80%" });
+
+        if (configResult is not CreateSessionDialogResult dialogResult) return;
+
+        var persistedData = new PersistedSessionData
+        {
+            Config = dialogResult.Config,
+            Assets = dialogResult.Assets,
+            SubmitDomainsAsFqdns = dialogResult.SubmitDomainsAsFqdnAssets
+        };
+        var newConfigJson = persistedData.Serialize();
+
+        var nameResult = await DialogService.OpenAsync<SaveAsTemplateDialog>(
+            "Save Template",
+            new Dictionary<string, object?>
+            {
+                { nameof(SaveAsTemplateDialog.ConfigJson), newConfigJson },
+                { nameof(SaveAsTemplateDialog.SuggestedName), template.Name },
+                { nameof(SaveAsTemplateDialog.SuggestedDescription), template.Description }
+            },
+            new DialogOptions { Width = "500px" });
+
+        if (nameResult is not SaveAsTemplateDialogResult nameDialogResult) return;
+
+        await TemplateRepository.UpdateAsync(template.Id, nameDialogResult.Name, nameDialogResult.Description, nameDialogResult.ConfigJson);
+        NotificationService.Notify(NotificationSeverity.Success, "Template updated", nameDialogResult.Name);
+        await LoadTemplates();
+        StateHasChanged();
+    }
+
+    private async Task DeleteTemplate(SessionTemplateRecord template)
+    {
+        var confirmed = await DialogService.Confirm(
+            $"Delete template \"{template.Name}\"?", "Confirm Delete",
+            new ConfirmOptions { OkButtonText = "Delete", CancelButtonText = "Cancel" });
+        if (confirmed != true) return;
+
+        await TemplateRepository.DeleteAsync(template.Id);
+        NotificationService.Notify(NotificationSeverity.Success, "Template deleted");
+        await LoadTemplates();
+        StateHasChanged();
+    }
+
+    private async Task<EnumerationResult?> RunWithProgressDialog(CreateSessionDialogResult dialogResult)
+    {
+        var parameters = new Dictionary<string, object?>
+        {
+            { nameof(SessionProgressDialog.Config), dialogResult.Config },
+            { nameof(SessionProgressDialog.SeedAssets), dialogResult.Assets },
+            { nameof(SessionProgressDialog.SubmitDomainsAsFqdns), dialogResult.SubmitDomainsAsFqdnAssets },
+            { nameof(SessionProgressDialog.TargetEnginePodName),
+                dialogResult.UseSameEngine ? dialogResult.TargetEnginePodName : null },
+        };
+
+        var result = await DialogService.OpenAsync<SessionProgressDialog>("Creating Session",
+            parameters,
+            new DialogOptions { ShowClose = false, CloseDialogOnEsc = false, Width = "500px" });
+
+        return result as EnumerationResult;
+    }
+
+    private async Task HandleEnumerationResult(EnumerationResult? enumResult, CreateSessionDialogResult dialogResult)
+    {
+        if (enumResult is null) return;
+
+        if (enumResult.Success)
+        {
+            NotificationService.Notify(NotificationSeverity.Success, "Enumeration started",
+                $"Session {enumResult.SessionToken} on {enumResult.EnginePodName}");
+        }
+        else
+        {
+            var errorMessage = enumResult.ErrorMessage ?? "Unknown error";
+            NotificationService.Notify(NotificationSeverity.Error, "Enumeration failed", errorMessage);
+            var persistedData = new PersistedSessionData
+            {
+                Config = dialogResult.Config,
+                Assets = dialogResult.Assets,
+                SubmitDomainsAsFqdns = dialogResult.SubmitDomainsAsFqdnAssets
+            };
+            await SessionRepository.CreateFailedAsync(dialogResult.Config.Scope?.Domains ?? [], persistedData.Serialize(), errorMessage);
+        }
+    }
+
+    private static string FormatRelativeTime(DateTime utcTime)
+    {
+        var diff = DateTime.UtcNow - utcTime;
+        if (diff.TotalMinutes < 1) return "just now";
+        if (diff.TotalHours < 1) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalDays < 1) return $"{(int)diff.TotalHours}h ago";
+        return $"{(int)diff.TotalDays}d ago";
+    }
+}
